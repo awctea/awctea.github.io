@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tree Quiz</title>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    .branch, .leaf { list-style-type: none; padding-left: 1rem; }
+    .branch { border: 1px solid #ddd; margin: 0.5rem 0; border-radius: 6px; padding: 0.5rem; }
+    .leaf { margin: 0.25rem 0; padding: 0.5rem; background: #f9f9f9; border: 1px solid #ccc; border-radius: 4px; cursor: grab; }
+    button { margin-top: 1rem; padding: 0.5rem 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Category Tree Quiz</h1>
+  <p>Drag the items into the correct categories.</p>
+
+  <ul id="tree" class="branch">
+    <li class="branch">
+      <strong>Animals</strong>
+      <ul id="animals" class="branch">
+        <li class="leaf">Dog</li>
+        <li class="leaf">Cat</li>
+      </ul>
+    </li>
+    <li class="branch">
+      <strong>Plants</strong>
+      <ul id="plants" class="branch">
+        <li class="leaf">Oak</li>
+        <li class="leaf">Rose</li>
+      </ul>
+    </li>
+  </ul>
+
+  <input type="text" id="username" placeholder="Enter your name">
+  <br>
+  <button onclick="checkAnswers()">Submit</button>
+
+  <script>
+    // Correct structure
+    const correctTree = {
+      Animals: ["Dog", "Cat"],
+      Plants: ["Oak", "Rose"]
+    };
+
+    // Make all lists sortable
+    document.querySelectorAll('.branch').forEach(branch => {
+      new Sortable(branch, {
+        group: 'shared',
+        animation: 150
+      });
+    });
+
+    // Extract current tree structure
+    function getCurrentTree() {
+      const result = {};
+      Object.keys(correctTree).forEach(category => {
+        const ul = document.getElementById(category.toLowerCase());
+        result[category] = Array.from(ul.querySelectorAll('.leaf')).map(li => li.textContent);
+      });
+      return result;
+    }
+
+    // Compare answers
+    function checkAnswers() {
+      const current = getCurrentTree();
+      let score = 0;
+      let total = 0;
+      let answers = [];
+
+      for (let category in correctTree) {
+        const correctItems = correctTree[category];
+        const userItems = current[category];
+        correctItems.forEach(item => {
+          total++;
+          if (userItems.includes(item)) {
+            score++;
+          }
+        });
+        answers.push(`${category}: ${userItems.join(", ")}`);
+      }
+
+      const username = document.getElementById("username").value || "Anonymous";
+      alert(`You scored ${score}/${total}`);
+
+      // Send to Google Sheet
+      submitResults(username, score, answers);
+    }
+
+    function submitResults(username, score, answers) {
+      const url = "YOUR_WEB_APP_URL"; // replace with Apps Script web app link
+      const payload = { username, score, answers };
+
+      fetch(url, {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" }
+      })
+      .then(res => res.json())
+      .then(data => console.log("Saved to Google Sheet:", data))
+      .catch(err => console.error("Error:", err));
+    }
+  </script>
+</body>
+</html>
