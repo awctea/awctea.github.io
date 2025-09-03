@@ -17,7 +17,7 @@ const firebaseConfig = {
   messagingSenderId: "1073801314798",
   appId: "1:1073801314798:web:abd01ae67a5bc9c1eb0eff"
 };
-  
+
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
@@ -64,13 +64,13 @@ const firebaseConfig = {
 
     container.appendChild(wrapper);
 
-    // Add two root nodes with placeholders if empty
+    // Initialize two root nodes with placeholders if empty
     if (!tree.nodes.length) {
       const root1 = createNode("Admin");
       root1.children.push(createNode("Placeholder 1"));
       root1.children.push(createNode("Placeholder 2"));
 
-      const root2 = createNode("Programs");
+      const root2 = createNode("Comms");
       root2.children.push(createNode("Placeholder 1"));
       root2.children.push(createNode("Placeholder 2"));
 
@@ -93,17 +93,20 @@ const firebaseConfig = {
       `;
       ul.appendChild(li);
 
+      // Recursively render children
       if (node.children.length) {
         const childUl = document.createElement("ul");
         li.appendChild(childUl);
         renderNodes(childUl, node.children);
-        initSortableForTree(childUl);
+        initSortableForTree(childUl); // Ensure newly created child UL is sortable
       }
 
+      // Update title
       li.querySelector(".title").addEventListener("input", e => {
         node.title = e.target.textContent.trim() || "Untitled";
       });
 
+      // Add child
       li.querySelector(".add-btn").addEventListener("click", () => {
         const child = createNode();
         node.children.push(child);
@@ -115,11 +118,13 @@ const firebaseConfig = {
         }
 
         renderNodes(childUl, node.children);
-        initSortableForTree(childUl);
+        initSortableForTree(childUl); // 🔹 Make sure new UL is sortable
       });
 
+      // Delete node
       li.querySelector(".delete-btn").addEventListener("click", () => {
-        if (tree.nodes.length <= 1 && node.children.length === 0) {
+        // Ensure at least one root node remains
+        if (tree.nodes.length <= 1 && !node.children.length) {
           alert("Cannot delete all root nodes.");
           return;
         }
