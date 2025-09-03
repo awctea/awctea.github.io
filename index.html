@@ -4,196 +4,146 @@
 <meta charset="UTF-8">
 <title>Shared Drive Organization Exercise</title>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js";
+
+  // --- Firebase Setup ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyAsGafeMKHVxAeUVAroHj-FqyPiRaDDyqE",
+    authDomain: "test-769a6.firebaseapp.com",
+    projectId: "test-769a6",
+    storageBucket: "test-769a6.firebasestorage.app",
+    messagingSenderId: "1073801314798",
+    appId: "1:1073801314798:web:abd01ae67a5bc9c1eb0eff"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // --- Data Model ---
+  let tree = { id: Date.now() + Math.random(), nodes: [] };
+  function createNode(title) {
+    return { id: Date.now() + Math.random(), title: title || "New Item", children: [] };
+  }
+  function findNode(nodes, id) { if (!Array.isArray(nodes)) return null; for (const n of nodes) { if (!n) continue; if (n.id === id) return n; const child = n.children ? findNode(n.children, id) : null; if (child) return child; } return null; }
+  function removeNode(nodes, id) { if (!Array.isArray(nodes)) return false; for (let i=0;i<nodes.length;i++){const n=nodes[i];if(!n)continue;if(n.id===id){nodes.splice(i,1);return true;}if(Array.isArray(n.children)&&n.children.length>0){if(removeNode(n.children,id))return true;} } return false; }
+  function isDescendant(targetId, potentialAncestorId, nodes){ const ancestor=findNode(nodes,potentialAncestorId); if(!ancestor||!ancestor.children)return false; for(const child of ancestor.children){ if(!child)continue; if(child.id===targetId)return true; if(isDescendant(targetId,child.id,nodes))return true; } return false; }
+  function buildNodesFromUL(ul, existingNodes){
+    const byId=new Map(); (function index(nodes){ if(!Array.isArray(nodes))return; for(const n of nodes){ if(n&&typeof n.id!=='undefined'){ byId.set(n.id,n); if(Array.isArray(n.children))index(n.children); } } })(existingNodes||[]);
+    function build(ulEl){ const result=[]; Array.from(ulEl.children).forEach(el=>{ if(!(el instanceof HTMLElement)&&el.tagName!=='LI')return; const li=el; let idStr=li.dataset?li.dataset.nodeId:undefined; let idNum=idStr?Number(idStr):NaN; if(Number.isNaN(idNum)){ idNum=Date.now()+Math.random(); li.dataset.nodeId=String(idNum); } let node=byId.get(idNum); const titleText=li.querySelector('.title')?.textContent?.trim()||'Untitled'; if(!node){ node={id:idNum,title:titleText,children:[]}; }else{ node.title=titleText||node.title||'Untitled'; node.children=[]; } const childUl=Array.from(li.children).find(c=>c.tagName==='UL'); if(childUl)node.children=build(childUl); result.push(node); }); return result; }
+    return build(ul);
+  }
+
+  // --- Render Functions ---
+  function renderTree(treeObj){
+    const container=document.getElementById("trees-container"); container.innerHTML="";
+    const wrapper=document.createElement("div"); wrapper.className="tree-wrapper"; wrapper.dataset.treeId=treeObj.id;
+    const ul=document.createElement("ul"); ul.className="tree"; wrapper.appendChild(ul);
+    container.appendChild(wrapper);
+
+    if(!treeObj.nodes.length){
+      const root1=createNode("Admin"); root1.children.push(createNode("Placeholder 1")); root1.children.push(createNode("Placeholder 2"));
+      const root2=createNode("Category A"); root2.children.push(createNode("Placeholder 1")); root2.children.push(createNode("Placeholder 2"));
+      treeObj.nodes.push(root1,root2);
+    }
+    renderNodes(ul, treeObj.nodes, treeObj);
+    initSortableForTree(ul);
+  }
+
+  function renderNodes(ul,nodes,treeObj){
+    ul.innerHTML="";
+    nodes.forEach(node=>{
+      if(!node)return;
+      const li=document.createElement("li"); li.dataset.nodeId=String(node.id); li.innerHTML=`
+        <span class="title" contenteditable="true">${node.title}</span>
+        <button class="add-btn" title="Add child">➕</button>
+        <button class="delete-btn" title="Delete">🗑️</button>
+      `; ul.appendChild(li);
+
+      if(Array.isArray(node.children)&&node.children.length){
+        const childUl=document.createElement("ul"); li.appendChild(childUl); renderNodes(childUl,node.children,treeObj); initSortableForTree(childUl);
+      }
+
+      li.querySelector(".title").addEventListener("input",e=>{node.title=e.target.textContent.trim()||"Untitled";});
+      li.querySelector(".add-btn").addEventListener("click",()=>{
+        const child=createNode(); node.children.push(child);
+        let childUl=Array.from(li.children).find(c=>c.tagName==='UL'); if(!childUl){childUl=document.createElement("ul"); li.appendChild(childUl);}
+        renderNodes(childUl,node.children,treeObj); initSortableForTree(childUl);
+      });
+      li.querySelector(".delete-btn").addEventListener("click",()=>{
+        const ulRoot=document.querySelector(".tree"); if(ulRoot) updateTreeDataFromDOM(ulRoot);
+        const isRootNode=Array.isArray(treeObj.nodes)&&treeObj.nodes.some(n=>n&&n.id===node.id);
+        if(isRootNode && treeObj.nodes.length<=1){ alert("Cannot delete all root nodes."); return; }
+        removeNode(treeObj.nodes,node.id); li.remove();
+      });
+    });
+  }
+
+  function initSortableForTree(ul){
+    new Sortable(ul,{ group:'nested', animation:150, fallbackOnBody:true, swapThreshold:0.65,
+      onEnd:(evt)=>{
+        const ulRoot=document.querySelector(".tree"); if(ulRoot) updateTreeDataFromDOM(ulRoot);
+        if(evt.item&&evt.to){
+          const movedId=Number(evt.item.dataset.nodeId);
+          const newParentLi=evt.to.closest('li');
+          if(newParentLi){
+            const newParentId=Number(newParentLi.dataset.nodeId);
+            if(isDescendant(newParentId,movedId,tree.nodes)){
+              const movedNode=findNode(tree.nodes,movedId); removeNode(tree.nodes,movedId);
+              if(movedNode) tree.nodes.push(movedNode);
+              renderTree(tree);
+              alert("Invalid drop: cannot move a node into its descendant. Node returned to root.");
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function updateTreeDataFromDOM(ul){ if(!ul)return; tree.nodes=buildNodesFromUL(ul,tree.nodes); }
+
+  // --- Submission ---
+  window.submitHierarchy=async function(){
+    const username=document.getElementById("username").value||"Anonymous";
+    try{
+      const ulRoot=document.querySelector(".tree"); if(ulRoot) updateTreeDataFromDOM(ulRoot);
+      await addDoc(collection(db,"submissions"),{ username, tree, timestamp: new Date() });
+      alert("Hierarchy submitted successfully!");
+    }catch(e){ console.error(e); alert("Failed to submit hierarchy."); }
+  };
+
+  window.onload=function(){ renderTree(tree); };
+</script>
+
 <style>
-body { font-family: sans-serif; margin: 2rem; }
-ul { list-style: none; padding-left: 1rem; }
-li { margin: 0.3rem 0; padding: 0.4rem 0.6rem; border-radius: 6px; background: #fff;
-     box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; transition: background 0.2s; }
-li:hover { background: #e6f3ff; }
-li > .title { font-weight: 500; margin-right: 0.5rem; }
-ul ul { margin-top: 0.3rem; margin-left: 1.5rem; padding-left: 0.8rem; border-left: 2px solid #ccc; }
-button { border: none; background: transparent; cursor: pointer; padding: 0.2rem 0.4rem; border-radius: 4px; }
-button:hover { background: #f0f4ff; }
-.add-btn { color: #2e7d32; }
-.delete-btn { color: #c62828; }
-.tree-wrapper { margin-bottom: 1rem; padding: 0.5rem; border: 1px solid #aaa; border-radius: 6px; background: #f9f9f9; }
+body{font-family:'Roboto',sans-serif;margin:2rem;line-height:1.5;background:#f8f9fa;color:#333;}
+h1{color:#1565c0;font-weight:600;margin-bottom:2rem;text-align:center;font-size:2rem;}
+.tree-wrapper, .tree-wrapper ul, .tree-wrapper li, .tree-wrapper .title{font-family:'Roboto',sans-serif;}
+ul{list-style-type:none;padding-left:1rem;}
+li{margin:0.3rem 0;padding:0.4rem 0.6rem;border-radius:8px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.1);transition:background 0.2s;position:relative;}
+li:hover{background-color:#e6f3ff;}
+.title::before{content:"📄 ";}
+li>.title{font-weight:500;margin-right:0.5rem;}
+ul ul{margin-top:0.3rem;margin-left:1.5rem;padding-left:0.8rem;border-left:2px solid #ccc;}
+button{border:none;background:transparent;cursor:pointer;font-size:1rem;padding:0.2rem 0.4rem;border-radius:6px;transition:background 0.2s;}
+.add-btn{color:#2e7d32;}
+.add-btn:hover{background:#e0f2e9;}
+.delete-btn{color:#c62828;}
+.delete-btn:hover{background:#fdecea;}
+button#submit-btn{font-size:1.25rem;padding:0.75rem 1.5rem;font-weight:600;border-radius:8px;background-color:#1565c0;color:white;cursor:pointer;transition:background 0.2s, transform 0.2s;}
+button#submit-btn:hover{background-color:#0d47a1;transform:translateY(-2px);}
+.tree-wrapper{margin-bottom:1rem;padding:0.5rem;border:1px solid #aaa;border-radius:6px;background:#f9f9f9;}
+.toolbar{margin:1rem 0;display:flex;gap:0.5rem;align-items:center;}
+.toolbar button{border:1px solid #bbb;padding:0.4rem 0.6rem;border-radius:6px;background:#fff;}
+.toolbar button:hover{background:#f2f6ff;}
 </style>
 </head>
 <body>
 <h1>Shared Drive Organization Exercise</h1>
-<p>Use the box below to create a structure for our Shared Drive. Add or delete items using the buttons.
-Click on titles to edit. Avoid confidential info.</p>
-
-<input id="username" placeholder="Enter your name">
+<div class="toolbar">
+  <input type="text" id="username" placeholder="Enter your name" />
+  <button id="submit-btn" onclick="submitHierarchy()">Submit</button>
+</div>
 <div id="trees-container"></div>
-<button onclick="submitHierarchy()">Submit</button>
-
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js";
-import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js";
-
-const app = initializeApp({
-  apiKey: "AIzaSyAsGafeMKHVxAeUVAroHj-FqyPiRaDDyqE",
-  authDomain: "test-769a6.firebaseapp.com",
-  projectId: "test-769a6",
-  storageBucket: "test-769a6.firebasestorage.app",
-  messagingSenderId: "1073801314798",
-  appId: "1:1073801314798:web:abd01ae67a5bc9c1eb0eff"
-});
-const db = getFirestore(app);
-
-let tree = { id: Date.now() + Math.random(), nodes: [] };
-
-function createNode(title) {
-  return { id: Date.now() + Math.random(), title: title || "New Item", children: [] };
-}
-
-function findNode(nodes, id) {
-  if (!Array.isArray(nodes)) return null;
-  for (const n of nodes) {
-    if (!n) continue;
-    if (n.id === id) return n;
-    const child = n.children ? findNode(n.children, id) : null;
-    if (child) return child;
-  }
-  return null;
-}
-
-function removeNode(nodes, id) {
-  if (!Array.isArray(nodes)) return false;
-  for (let i = 0; i < nodes.length; i++) {
-    const n = nodes[i];
-    if (!n) continue;
-    if (n.id === id) { nodes.splice(i,1); return true; }
-    if (Array.isArray(n.children) && n.children.length > 0) {
-      if (removeNode(n.children, id)) return true;
-    }
-  }
-  return false;
-}
-
-function isDescendant(targetId, parentId, nodes) {
-  const parent = findNode(nodes, parentId);
-  if (!parent || !parent.children) return false;
-  for (const c of parent.children) {
-    if (!c) continue;
-    if (c.id === targetId || isDescendant(targetId, c.id, nodes)) return true;
-  }
-  return false;
-}
-
-function buildNodesFromUL(ul, existing) {
-  const byId = new Map();
-  (function index(nodes) {
-    if (!Array.isArray(nodes)) return;
-    for (const n of nodes) {
-      if (n && n.id !== undefined) {
-        byId.set(n.id, n);
-        if (Array.isArray(n.children)) index(n.children);
-      }
-    }
-  })(existing || []);
-
-  function build(ulEl) {
-    const result = [];
-    Array.from(ulEl.children).forEach(li => {
-      if (!(li instanceof HTMLElement) || li.tagName !== 'LI') return;
-      let idNum = li.dataset.nodeId ? Number(li.dataset.nodeId) : NaN;
-      if (isNaN(idNum)) { idNum = Date.now() + Math.random(); li.dataset.nodeId = idNum; }
-      let node = byId.get(idNum);
-      const title = li.querySelector('.title')?.textContent?.trim() || 'Untitled';
-      if (!node) node = { id: idNum, title, children: [] };
-      else { node.title = title; node.children = []; }
-      const childUl = Array.from(li.children).find(c => c.tagName==='UL');
-      if (childUl) node.children = build(childUl);
-      result.push(node);
-    });
-    return result;
-  }
-
-  return build(ul);
-}
-
-function renderTree(t) {
-  const container = document.getElementById("trees-container");
-  container.innerHTML = "";
-  const wrapper = document.createElement("div");
-  wrapper.className = "tree-wrapper";
-  wrapper.dataset.treeId = t.id;
-  const ul = document.createElement("ul"); ul.className="tree"; wrapper.appendChild(ul);
-  container.appendChild(wrapper);
-
-  if (!t.nodes.length) {
-    const r1 = createNode("Admin"); r1.children.push(createNode("Placeholder 1"), createNode("Placeholder 2"));
-    const r2 = createNode("Category A"); r2.children.push(createNode("Placeholder 1"), createNode("Placeholder 2"));
-    t.nodes.push(r1,r2);
-  }
-
-  renderNodes(ul, t.nodes, t);
-  initSortableForTree(ul);
-}
-
-function renderNodes(ul,nodes,t){
-  ul.innerHTML="";
-  nodes.forEach(n=>{
-    if(!n)return;
-    const li=document.createElement("li"); li.dataset.nodeId=n.id;
-    li.innerHTML=`<span class="title" contenteditable="true">${n.title}</span>
-                  <button class="add-btn">➕</button><button class="delete-btn">🗑️</button>`;
-    ul.appendChild(li);
-
-    if(n.children.length){
-      const childUl=document.createElement("ul"); li.appendChild(childUl);
-      renderNodes(childUl,n.children,t); initSortableForTree(childUl);
-    }
-
-    li.querySelector(".title").addEventListener("input", e=>{ n.title=e.target.textContent.trim()||"Untitled"; });
-    li.querySelector(".add-btn").addEventListener("click", ()=>{
-      const c = createNode(); n.children.push(c);
-      let cu = Array.from(li.children).find(c=>c.tagName==='UL'); if(!cu){cu=document.createElement("ul"); li.appendChild(cu);}
-      renderNodes(cu,n.children,t); initSortableForTree(cu);
-    });
-    li.querySelector(".delete-btn").addEventListener("click", ()=>{
-      const rootUl=document.querySelector(".tree"); if(rootUl) tree.nodes=buildNodesFromUL(rootUl,tree.nodes);
-      const isRoot=t.nodes.some(x=>x.id===n.id); if(isRoot && t.nodes.length<=1){alert("Cannot delete all root nodes."); return;}
-      removeNode(t.nodes,n.id); li.remove();
-    });
-  });
-}
-
-function initSortableForTree(ul){
-  new Sortable(ul,{
-    group:'nested', animation:150, fallbackOnBody:true, swapThreshold:.65,
-    onEnd:e=>{
-      const rootUl=document.querySelector(".tree"); if(rootUl) tree.nodes=buildNodesFromUL(rootUl,tree.nodes);
-      if(e.item && e.to){
-        const movedId=Number(e.item.dataset.nodeId);
-        const newParentLi=e.to.closest('li');
-        if(newParentLi){
-          const newParentId=Number(newParentLi.dataset.nodeId);
-          if(isDescendant(newParentId,movedId,tree.nodes)){
-            const movedNode=findNode(tree.nodes,movedId);
-            removeNode(tree.nodes,movedId);
-            if(movedNode) tree.nodes.push(movedNode);
-            renderTree(tree);
-            alert("Invalid drop: cannot move a node into its descendant. Node returned to root.");
-          }
-        }
-      }
-    }
-  });
-}
-
-window.submitHierarchy=async()=>{
-  const username=document.getElementById("username").value||"Anonymous";
-  try{
-    const rootUl=document.querySelector(".tree"); if(rootUl) tree.nodes=buildNodesFromUL(rootUl,tree.nodes);
-    await addDoc(collection(db,"submissions"), { username, tree, timestamp:new Date() });
-    alert("Hierarchy submitted successfully!");
-  } catch(e){ console.error(e); alert("Failed to submit hierarchy."); }
-};
-
-window.onload=()=>{ renderTree(tree); };
-</script>
 </body>
 </html>
