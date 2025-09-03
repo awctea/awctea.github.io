@@ -92,12 +92,13 @@
       const url = "https://script.google.com/macros/s/AKfycbzOCeUceCDambD0hvvewkVXGQQkHgHFX73pK8iKr6aP11Jm8_c8NWXTgidJ5gmIEeHY/exec"; // replace with Apps Script web app link
       const payload = { username, score, answers };
 
-console.log("Submitting to", url, payload);
 fetch(url, {
   method: "POST",
+  mode: "no-cors",   // test only
   body: JSON.stringify(payload),
   headers: { "Content-Type": "application/json" }
 })
+
       .then(res => res.json())
       .then(data => console.log("Saved to Google Sheet:", data))
       .catch(err => console.error("Error:", err));
