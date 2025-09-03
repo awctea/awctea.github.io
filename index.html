@@ -2,103 +2,103 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Tree Quiz</title>
+<title>Interactive Hierarchy Exercise</title>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script type="module">
+  // Import Firebase modules
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js";
+
+  // 🔹 Paste your Firebase config here
+const firebaseConfig = {
+  apiKey: "AIzaSyAsGafeMKHVxAeUVAroHj-FqyPiRaDDyqE",
+  authDomain: "test-769a6.firebaseapp.com",
+  projectId: "test-769a6",
+  storageBucket: "test-769a6.firebasestorage.app",
+  messagingSenderId: "1073801314798",
+  appId: "1:1073801314798:web:abd01ae67a5bc9c1eb0eff"
+};
+  
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Submit hierarchy to Firestore
+  window.submitHierarchy = async function() {
+    const hierarchy = getHierarchy(document.getElementById("tree"));
+    const username = document.getElementById("username").value || "Anonymous";
+    try {
+      await addDoc(collection(db, "submissions"), { username, hierarchy, timestamp: new Date() });
+      alert("Hierarchy submitted!");
+    } catch (e) {
+      console.error("Error adding document: ", e);
+      alert("Failed to submit hierarchy.");
+    }
+  };
+
+  // Convert nested UL to JSON
+  function getHierarchy(ul) {
+    return Array.from(ul.children).map(li => {
+      const node = { title: li.querySelector(".title").textContent, children: [] };
+      const childUl = li.querySelector("ul");
+      if (childUl) node.children = getHierarchy(childUl);
+      return node;
+    });
+  }
+
+  // Add new item under a branch
+  window.addItem = function(button) {
+    const li = button.closest("li");
+    let childUl = li.querySelector("ul");
+    if (!childUl) {
+      childUl = document.createElement("ul");
+      li.appendChild(childUl);
+      new Sortable(childUl, sortableOptions);
+    }
+    const newLi = document.createElement("li");
+    newLi.className = "leaf";
+    newLi.innerHTML = '<span class="title">New Item</span> <button onclick="addItem(this)">+Add</button>';
+    childUl.appendChild(newLi);
+  };
+
+  // Sortable options
+  const sortableOptions = { group: 'nested', animation: 150 };
+  window.initSortable = function() {
+    new Sortable(document.getElementById("tree"), sortableOptions);
+    document.querySelectorAll("#tree ul").forEach(ul => new Sortable(ul, sortableOptions));
+  };
+</script>
 <style>
 body { font-family: sans-serif; margin: 2rem; }
-.branch, .leaf { list-style-type: none; padding-left: 1rem; }
-.branch { border: 1px solid #ddd; margin: 0.5rem 0; border-radius: 6px; padding: 0.5rem; }
-.leaf { margin: 0.25rem 0; padding: 0.5rem; background: #f9f9f9; border: 1px solid #ccc; border-radius: 4px; cursor: grab; }
-button { margin-top: 1rem; padding: 0.5rem 1rem; }
+ul { list-style-type: none; padding-left: 1rem; }
+li { margin: 0.25rem 0; padding: 0.25rem; border: 1px solid #ccc; border-radius: 4px; }
+button { margin-left: 0.5rem; }
 </style>
 </head>
-<body>
-<h1>Category Tree Quiz</h1>
-<p>Drag the items into the correct categories.</p>
+<body onload="initSortable()">
+<h1>Interactive Hierarchy Exercise</h1>
+<p>Drag items to organize them. Add new items freely.</p>
 
-<ul id="tree" class="branch">
-  <li class="branch">
-    <strong>Animals</strong>
-    <ul id="animals" class="branch">
-      <li class="leaf">Dog</li>
-      <li class="leaf">Cat</li>
+<input type="text" id="username" placeholder="Enter your name">
+<button onclick="submitHierarchy()">Submit Hierarchy</button>
+
+<ul id="tree">
+  <li>
+    <span class="title">Animals</span>
+    <button onclick="addItem(this)">+Add</button>
+    <ul>
+      <li class="leaf"><span class="title">Dog</span> <button onclick="addItem(this)">+Add</button></li>
+      <li class="leaf"><span class="title">Cat</span> <button onclick="addItem(this)">+Add</button></li>
     </ul>
   </li>
-  <li class="branch">
-    <strong>Plants</strong>
-    <ul id="plants" class="branch">
-      <li class="leaf">Oak</li>
-      <li class="leaf">Rose</li>
+  <li>
+    <span class="title">Plants</span>
+    <button onclick="addItem(this)">+Add</button>
+    <ul>
+      <li class="leaf"><span class="title">Oak</span> <button onclick="addItem(this)">+Add</button></li>
+      <li class="leaf"><span class="title">Rose</span> <button onclick="addItem(this)">+Add</button></li>
     </ul>
   </li>
 </ul>
-
-<input type="text" id="username" placeholder="Enter your name">
-<br>
-<button onclick="checkAnswers()">Submit</button>
-
-<script>
-// Correct structure
-const correctTree = {
-  Animals: ["Dog", "Cat"],
-  Plants: ["Oak", "Rose"]
-};
-
-// Make all lists sortable
-document.querySelectorAll('.branch').forEach(branch => {
-  new Sortable(branch, {
-    group: 'shared',
-    animation: 150
-  });
-});
-
-// Extract current tree structure
-function getCurrentTree() {
-  const result = {};
-  Object.keys(correctTree).forEach(category => {
-    const ul = document.getElementById(category.toLowerCase());
-    result[category] = Array.from(ul.querySelectorAll('.leaf')).map(li => li.textContent);
-  });
-  return result;
-}
-
-// Check answers & send to Google Sheet
-function checkAnswers() {
-  const current = getCurrentTree();
-  let score = 0;
-  let total = 0;
-  let answers = [];
-
-  for (let category in correctTree) {
-    const correctItems = correctTree[category];
-    const userItems = current[category];
-    correctItems.forEach(item => {
-      total++;
-      if (userItems.includes(item)) score++;
-    });
-    answers.push(`${category}: ${userItems.join(", ")}`);
-  }
-
-  const username = document.getElementById("username").value || "Anonymous";
-  alert(`You scored ${score}/${total}`);
-
-  submitResults(username, score, answers);
-}
-
-// Submit results (no-cors to bypass CORS)
-function submitResults(username, score, answers) {
-  const url = "https://script.google.com/macros/s/AKfycbyp8yq-hAH2ynTPM-yrXE7uW0rVsV3mEu-xIQCb4eEMfHJUta5GtKz1WsVYwXa5b1YHGQ/exec"; // <-- replace with your /exec URL
-  const payload = { username, score, answers };
-
-  fetch(url, {
-    method: "POST",
-    mode: "no-cors",
-    body: JSON.stringify(payload),
-    headers: { "Content-Type": "application/json" }
-  })
-  .then(() => console.log("Results sent"))
-  .catch(err => console.error("Error:", err));
-}
-</script>
 </body>
 </html>
