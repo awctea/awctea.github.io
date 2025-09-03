@@ -5,11 +5,11 @@
 <title>Interactive Hierarchy Exercise</title>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script type="module">
-  // Import Firebase modules
+  // ---------------- Firebase Setup ----------------
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js";
   import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js";
 
-  // 🔹 Paste your Firebase config here
+  // 🔹 Replace with your Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyAsGafeMKHVxAeUVAroHj-FqyPiRaDDyqE",
   authDomain: "test-769a6.firebaseapp.com",
@@ -18,25 +18,39 @@ const firebaseConfig = {
   messagingSenderId: "1073801314798",
   appId: "1:1073801314798:web:abd01ae67a5bc9c1eb0eff"
 };
-  
-  // Initialize Firebase
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  // Submit hierarchy to Firestore
-  window.submitHierarchy = async function() {
-    const hierarchy = getHierarchy(document.getElementById("tree"));
-    const username = document.getElementById("username").value || "Anonymous";
-    try {
-      await addDoc(collection(db, "submissions"), { username, hierarchy, timestamp: new Date() });
-      alert("Hierarchy submitted!");
-    } catch (e) {
-      console.error("Error adding document: ", e);
-      alert("Failed to submit hierarchy.");
-    }
+  // ---------------- Drag-and-Drop Setup ----------------
+  const sortableOptions = { group: 'nested', animation: 150 };
+
+  window.initSortable = function() {
+    new Sortable(document.getElementById("tree"), sortableOptions);
+    document.querySelectorAll("#tree ul").forEach(ul => new Sortable(ul, sortableOptions));
   };
 
-  // Convert nested UL to JSON
+  // ---------------- Add New Item ----------------
+  window.addItem = function(button) {
+    const li = button.closest("li");
+    let childUl = li.querySelector("ul");
+    if (!childUl) {
+      childUl = document.createElement("ul");
+      li.appendChild(childUl);
+      new Sortable(childUl, sortableOptions);
+    }
+
+    const newLi = document.createElement("li");
+    newLi.className = "leaf";
+    newLi.innerHTML = '<span class="title" contenteditable="true">New Item</span> <button onclick="addItem(this)">+Add</button>';
+    childUl.appendChild(newLi);
+
+    // ✅ Step 4a: focus new item immediately
+    const span = newLi.querySelector(".title");
+    span.focus();
+    span.select();
+  };
+
+  // ---------------- Convert Tree to JSON ----------------
   function getHierarchy(ul) {
     return Array.from(ul.children).map(li => {
       const node = { title: li.querySelector(".title").textContent, children: [] };
@@ -46,26 +60,30 @@ const firebaseConfig = {
     });
   }
 
-  // Add new item under a branch
-  window.addItem = function(button) {
-    const li = button.closest("li");
-    let childUl = li.querySelector("ul");
-    if (!childUl) {
-      childUl = document.createElement("ul");
-      li.appendChild(childUl);
-      new Sortable(childUl, sortableOptions);
-    }
-    const newLi = document.createElement("li");
-    newLi.className = "leaf";
-    newLi.innerHTML = '<span class="title">New Item</span> <button onclick="addItem(this)">+Add</button>';
-    childUl.appendChild(newLi);
-  };
+  // ---------------- Submit to Firebase ----------------
+  window.submitHierarchy = async function() {
+    const hierarchy = getHierarchy(document.getElementById("tree"));
 
-  // Sortable options
-  const sortableOptions = { group: 'nested', animation: 150 };
-  window.initSortable = function() {
-    new Sortable(document.getElementById("tree"), sortableOptions);
-    document.querySelectorAll("#tree ul").forEach(ul => new Sortable(ul, sortableOptions));
+    // 🔹 Step 4b: sanitize empty titles
+    function sanitizeHierarchy(node) {
+      node.title = node.title.trim() || "Untitled";
+      if (node.children.length) node.children.forEach(sanitizeHierarchy);
+    }
+    hierarchy.forEach(sanitizeHierarchy);
+
+    const username = document.getElementById("username").value || "Anonymous";
+
+    try {
+      await addDoc(collection(db, "submissions"), {
+        username,
+        hierarchy,
+        timestamp: new Date()
+      });
+      alert("Hierarchy submitted successfully!");
+    } catch (e) {
+      console.error("Error adding document: ", e);
+      alert("Failed to submit hierarchy.");
+    }
   };
 </script>
 <style>
@@ -73,32 +91,47 @@ body { font-family: sans-serif; margin: 2rem; }
 ul { list-style-type: none; padding-left: 1rem; }
 li { margin: 0.25rem 0; padding: 0.25rem; border: 1px solid #ccc; border-radius: 4px; }
 button { margin-left: 0.5rem; }
+.title { outline: none; } /* remove focus outline if desired */
 </style>
 </head>
 <body onload="initSortable()">
+
 <h1>Interactive Hierarchy Exercise</h1>
-<p>Drag items to organize them. Add new items freely.</p>
+<p>Drag items to organize them. Add new items freely. Click on titles to edit them.</p>
 
 <input type="text" id="username" placeholder="Enter your name">
 <button onclick="submitHierarchy()">Submit Hierarchy</button>
 
 <ul id="tree">
   <li>
-    <span class="title">Animals</span>
+    <span class="title" contenteditable="true">Animals</span>
     <button onclick="addItem(this)">+Add</button>
     <ul>
-      <li class="leaf"><span class="title">Dog</span> <button onclick="addItem(this)">+Add</button></li>
-      <li class="leaf"><span class="title">Cat</span> <button onclick="addItem(this)">+Add</button></li>
+      <li class="leaf">
+        <span class="title" contenteditable="true">Dog</span>
+        <button onclick="addItem(this)">+Add</button>
+      </li>
+      <li class="leaf">
+        <span class="title" contenteditable="true">Cat</span>
+        <button onclick="addItem(this)">+Add</button>
+      </li>
     </ul>
   </li>
   <li>
-    <span class="title">Plants</span>
+    <span class="title" contenteditable="true">Plants</span>
     <button onclick="addItem(this)">+Add</button>
     <ul>
-      <li class="leaf"><span class="title">Oak</span> <button onclick="addItem(this)">+Add</button></li>
-      <li class="leaf"><span class="title">Rose</span> <button onclick="addItem(this)">+Add</button></li>
+      <li class="leaf">
+        <span class="title" contenteditable="true">Oak</span>
+        <button onclick="addItem(this)">+Add</button>
+      </li>
+      <li class="leaf">
+        <span class="title" contenteditable="true">Rose</span>
+        <button onclick="addItem(this)">+Add</button>
+      </li>
     </ul>
   </li>
 </ul>
+
 </body>
 </html>
