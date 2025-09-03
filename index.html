@@ -9,15 +9,15 @@
   import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js";
 
   // 🔹 Replace with your Firebase Web App config
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
-  };
-
+const firebaseConfig = {
+  apiKey: "AIzaSyAsGafeMKHVxAeUVAroHj-FqyPiRaDDyqE",
+  authDomain: "test-769a6.firebaseapp.com",
+  projectId: "test-769a6",
+  storageBucket: "test-769a6.firebasestorage.app",
+  messagingSenderId: "1073801314798",
+  appId: "1:1073801314798:web:abd01ae67a5bc9c1eb0eff"
+};
+  
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
@@ -196,8 +196,12 @@ button { margin-left: 0.5rem; }
 </head>
 <body>
 
-<h1>Interactive Hierarchy Exercise</h1>
-<p>Drag items to organize them. Add or delete items freely. Click on titles to edit them.</p>
+<h1>Information Hierarchy Exercise</h1>
+<p>Use the box below to create a structure for our Shared Drive. Add or delete items using the buttons. Drag items to organize them inside or outside the highlighted areas. Click on titles to edit them. 
+
+Please do not submit confidential information in this form. Where relevant, consider using more general terms or placeholder names like "Partner A". 
+
+When you are satisfied, enter your name/initials and click Submit. </p>
 
 <input type="text" id="username" placeholder="Enter your name">
 <button onclick="submitHierarchy()">Submit Hierarchy</button>
