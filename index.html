@@ -51,7 +51,10 @@ const firebaseConfig = {
   }
 
   function renderTree(tree) {
+    console.log("renderTree called with:", tree);
     const container = document.getElementById("trees-container");
+    console.log("Container found:", container);
+    
     container.innerHTML = "";
 
     const wrapper = document.createElement("div");
@@ -63,9 +66,11 @@ const firebaseConfig = {
     wrapper.appendChild(ul);
 
     container.appendChild(wrapper);
+    console.log("Wrapper and UL added to container");
 
     // Initialize two root nodes with placeholders if empty
     if (!tree.nodes.length) {
+      console.log("Initializing default nodes");
       const root1 = createNode("Admin");
       root1.children.push(createNode("Placeholder 1"));
       root1.children.push(createNode("Placeholder 2"));
@@ -75,10 +80,12 @@ const firebaseConfig = {
       root2.children.push(createNode("Placeholder 2"));
 
       tree.nodes.push(root1, root2);
+      console.log("Default nodes created:", tree.nodes);
     }
 
     renderNodes(ul, tree.nodes);
     initSortableForTree(ul);
+    console.log("renderTree completed");
   }
 
   function renderNodes(ul, nodes) {
