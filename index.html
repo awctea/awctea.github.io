@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Interactive Hierarchy Exercise (Array-Based)</title>
+<title>Interactive Hierarchy Exercise</title>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js";
@@ -17,12 +17,12 @@ const firebaseConfig = {
   messagingSenderId: "1073801314798",
   appId: "1:1073801314798:web:abd01ae67a5bc9c1eb0eff"
 };
-
+  
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
   // ---------------- Tree Data ----------------
-  let trees = []; // Array of tree objects
+  let trees = [];
 
   // ---------------- Helper Functions ----------------
   function createNode(title) {
@@ -36,6 +36,20 @@ const firebaseConfig = {
       if (child) return child;
     }
     return null;
+  }
+
+  function removeNode(nodes, id) {
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i].id === id) {
+        nodes.splice(i, 1);
+        return true;
+      }
+      if (nodes[i].children.length > 0) {
+        const removed = removeNode(nodes[i].children, id);
+        if (removed) return true;
+      }
+    }
+    return false;
   }
 
   // ---------------- Render ----------------
@@ -52,15 +66,12 @@ const firebaseConfig = {
 
     container.appendChild(wrapper);
 
-    // Add initial node if empty
     if (!tree.nodes.length) {
       const node = createNode("Root Node");
       tree.nodes.push(node);
     }
 
     renderNodes(ul, tree.nodes, tree);
-
-    // Initialize Sortable
     initSortableForTree(ul, tree);
 
     return wrapper;
@@ -71,30 +82,46 @@ const firebaseConfig = {
     nodes.forEach(node => {
       const li = document.createElement("li");
       li.dataset.nodeId = node.id;
-      li.innerHTML = `<span class="title" contenteditable="true">${node.title}</span> 
-                      <button class="add-btn">+Add</button>`;
+      li.innerHTML = `
+        <span class="title" contenteditable="true">${node.title}</span>
+        <button class="add-btn">+Add</button>
+        <button class="delete-btn">Delete</button>
+      `;
 
       ul.appendChild(li);
 
-      // Add children
       if (node.children.length) {
         const childUl = document.createElement("ul");
         li.appendChild(childUl);
         renderNodes(childUl, node.children, tree);
       }
 
-      // Event: title change
+      // Update title on input
       li.querySelector(".title").addEventListener("input", e => {
         node.title = e.target.textContent.trim() || "Untitled";
       });
 
-      // Event: add child
+      // Add child
       li.querySelector(".add-btn").addEventListener("click", () => {
         const child = createNode();
         node.children.push(child);
         const childUl = li.querySelector("ul") || document.createElement("ul");
         li.appendChild(childUl);
         renderNodes(childUl, node.children, tree);
+      });
+
+      // Delete node
+      li.querySelector(".delete-btn").addEventListener("click", () => {
+        // Optional: prevent deleting the last root node
+        if (!li.closest(".tree-wrapper")) return;
+        const treeRootId = tree.nodes[0]?.id;
+        if (node.id === treeRootId && tree.nodes.length === 1) {
+          alert("Cannot delete the last root node.");
+          return;
+        }
+
+        removeNode(tree.nodes, node.id);
+        li.remove();
       });
     });
   }
@@ -106,12 +133,16 @@ const firebaseConfig = {
       animation: 150,
       fallbackOnBody: true,
       swapThreshold: 0.65,
-      onEnd: evt => {
-        // Update the trees array after drag-and-drop
-        updateTreeDataFromDOM(tree, ul);
-      }
+      onEnd: evt => updateTreeDataFromDOM(tree, ul)
     });
-    ul.querySelectorAll("ul").forEach(childUl => new Sortable(childUl, { ...sortableOptions, onEnd: evt => updateTreeDataFromDOM(tree, ul) }));
+
+    ul.querySelectorAll("ul").forEach(childUl =>
+      new Sortable(childUl, {
+        group: 'nested',
+        animation: 150,
+        onEnd: evt => updateTreeDataFromDOM(tree, ul)
+      })
+    );
   }
 
   function updateTreeDataFromDOM(tree, ul) {
@@ -137,7 +168,6 @@ const firebaseConfig = {
   // ---------------- Submit ----------------
   window.submitAllHierarchies = async function() {
     const username = document.getElementById("username").value || "Anonymous";
-
     try {
       await addDoc(collection(db, "submissions"), {
         username,
@@ -151,9 +181,8 @@ const firebaseConfig = {
     }
   };
 
-  // ---------------- Init ----------------
   window.onload = function() {
-    addTree(); // add initial tree
+    addTree();
   };
 </script>
 
@@ -168,12 +197,12 @@ button { margin-left: 0.5rem; }
 </head>
 <body>
 
-<h1>Interactive Hierarchy Exercise</h1>
-<p>Drag items to organize them. Add new items freely. Click on titles to edit them.</p>
+<h1>Organize a Shared Drive</h1>
+<p>Drag items to organize them. Add or delete items freely. Click on titles to edit them.</p>
 
 <input type="text" id="username" placeholder="Enter your name">
-<button onclick="addTree()">+ Add New Shared Drive</button>
-<button onclick="submitAllHierarchies()">Submit Hierarchies</button>
+<button onclick="addTree()">+ Add New</button>
+<button onclick="submitAllHierarchies()">Submit All</button>
 
 <div id="trees-container"></div>
 
