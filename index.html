@@ -69,7 +69,7 @@ const firebaseConfig = {
       root1.children.push(createNode("Placeholder 1"));
       root1.children.push(createNode("Placeholder 2"));
 
-      const root2 = createNode("Comms");
+      const root2 = createNode("Category A");
       root2.children.push(createNode("Placeholder 1"));
       root2.children.push(createNode("Placeholder 2"));
 
@@ -96,7 +96,7 @@ const firebaseConfig = {
         const childUl = document.createElement("ul");
         li.appendChild(childUl);
         renderNodes(childUl, node.children);
-        initSortableForTree(childUl); // 🔹 Ensure new child UL is sortable
+        initSortableForTree(childUl);
       }
 
       // Update title
@@ -116,11 +116,14 @@ const firebaseConfig = {
         }
 
         renderNodes(childUl, node.children);
-        initSortableForTree(childUl); // 🔹 Ensure sortable works for new children
+        initSortableForTree(childUl);
       });
 
       // Delete node
       li.querySelector(".delete-btn").addEventListener("click", () => {
+        const ulRoot = document.querySelector(".tree");
+        updateTreeDataFromDOM(ulRoot);
+
         const isRootNode = tree.nodes.some(n => n.id === node.id);
 
         if (isRootNode && tree.nodes.length <= 1) {
@@ -140,7 +143,10 @@ const firebaseConfig = {
       animation: 150,
       fallbackOnBody: true,
       swapThreshold: 0.65,
-      onEnd: () => updateTreeDataFromDOM(ul)
+      onEnd: () => {
+        const ulRoot = document.querySelector(".tree");
+        updateTreeDataFromDOM(ulRoot);
+      }
     });
   }
 
@@ -181,19 +187,12 @@ const firebaseConfig = {
 body { font-family: sans-serif; margin: 2rem; }
 ul { list-style-type: none; padding-left: 1rem; }
 li { margin: 0.1rem 0; padding: 0.25rem 0.5rem; border-radius: 4px; }
-
-/* alternating background for readability */
 li:nth-child(odd) { background: #f0f0f0; }
 li:nth-child(even) { background: #fafafa; }
-
-/* nested children vertical line */
 li li { border-left: 2px solid #ccc; margin-left: 0.5rem; padding-left: 0.5rem; }
-
-/* hover and drag highlights */
 li:hover { background-color: #d0ebff; }
 .sortable-chosen { background-color: #a0d2ff !important; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
 .sortable-ghost { opacity: 0.5; }
-
 button { margin-left: 0.5rem; }
 .title { outline: none; }
 .tree-wrapper { margin-bottom: 1rem; padding: 0.5rem; border: 1px solid #aaa; border-radius: 6px; }
@@ -202,16 +201,12 @@ button { margin-left: 0.5rem; }
 <body>
 
 <h1>Shared Drive Organization Exercise</h1>
-<p>Use the box below to create a structure for our Shared Drive. Add or delete items using the buttons. Drag items to organize them inside or outside the highlighted areas. Click on titles to edit them. You may focus on items/areas more relevant to your work (or be comprehensive if you like a challenge!).
-<br>
-<br>
-Please do not submit confidential information in this form. Where relevant, consider using more general terms or placeholder names like "Partner A". 
-<br>
-<br>
-Note: Your changes are NOT saved automatically. Be sure to click <b>Submit</b> when finished, or your work will be lost. </p>
+
+<p>Use the box below to create a structure for our Shared Drive. Add or delete items using the buttons. Drag items to organize them inside or outside the highlighted areas. Click on titles to edit them. You may focus on items/areas more relevant to your work (or be comprehensive if you like a challenge!).<br><br>
+Please do not submit confidential information in this form. Where relevant, consider using more general terms or placeholder names like "Partner A".<br><br>
+Note: Your changes are NOT saved automatically. Be sure to click <b>Submit</b> when finished, or your work will be lost.</p>
 
 <input type="text" id="username" placeholder="Enter your name">
-
 <div id="trees-container"></div>
 <button onclick="submitHierarchy()">Submit</button>
 
