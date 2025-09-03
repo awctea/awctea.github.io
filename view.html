@@ -47,8 +47,28 @@ const firebaseConfig = {
     const ul = document.createElement("ul");
     ul.className = "tree-view";
     
-    if (tree.nodes && tree.nodes.length > 0) {
-      tree.nodes.forEach(node => ul.appendChild(renderNode(node, 0)));
+    console.log("renderTree called with:", tree);
+    
+    // Handle different possible data structures
+    let nodesToRender = [];
+    
+    if (tree && tree.nodes && Array.isArray(tree.nodes)) {
+      nodesToRender = tree.nodes;
+    } else if (Array.isArray(tree)) {
+      // Sometimes the tree might be an array directly
+      nodesToRender = tree;
+    } else if (tree && Array.isArray(tree.children)) {
+      // Handle case where tree is actually a single node
+      nodesToRender = [tree];
+    }
+    
+    console.log("Nodes to render:", nodesToRender.length, nodesToRender);
+    
+    if (nodesToRender.length > 0) {
+      nodesToRender.forEach((node, index) => {
+        console.log(`Rendering node ${index}:`, node);
+        ul.appendChild(renderNode(node, 0));
+      });
     } else {
       const li = document.createElement("li");
       li.className = "empty-tree";
