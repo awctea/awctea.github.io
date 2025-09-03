@@ -183,29 +183,49 @@ const firebaseConfig = {
   }
 
   function updateTreeDataFromDOM(ul) {
-    if (!ul) return;
+    if (!ul) {
+      console.warn("updateTreeDataFromDOM called with null ul");
+      return;
+    }
+
+    console.log("Updating tree data from DOM, found", ul.children.length, "root elements");
 
     function parseUL(ul) {
       const result = [];
-      Array.from(ul.children).forEach(li => {
-        const nodeId = parseFloat(li.dataset.nodeId); // Convert back to number
+      const children = Array.from(ul.children);
+      console.log("Parsing UL with", children.length, "children");
+      
+      children.forEach((li, index) => {
+        const nodeId = parseFloat(li.dataset.nodeId);
+        console.log(`Processing child ${index}, nodeId: ${nodeId}`);
+        
         const node = findNode(tree.nodes, nodeId);
         if (node) {
+          // Create a fresh copy to avoid reference issues
+          const newNode = {
+            id: node.id,
+            title: node.title,
+            children: []
+          };
+          
           // Update children array
           const childUl = li.querySelector("ul");
           if (childUl) {
-            node.children = parseUL(childUl);
-          } else {
-            node.children = [];
+            newNode.children = parseUL(childUl);
           }
-          result.push(node);
+          result.push(newNode);
+          console.log(`Added node: ${newNode.title} with ${newNode.children.length} children`);
+        } else {
+          console.warn(`Node with ID ${nodeId} not found in tree data`);
         }
       });
       return result;
     }
     
     try {
-      tree.nodes = parseUL(ul);
+      const newNodes = parseUL(ul);
+      tree.nodes = newNodes;
+      console.log("Tree updated with", tree.nodes.length, "root nodes:", tree.nodes.map(n => n.title));
     } catch (error) {
       console.error("Error updating tree data:", error);
     }
