@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Interactive Hierarchy Exercise</title>
+<title>Interactive Multi-Tree Hierarchy</title>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script type="module">
   // ---------------- Firebase Setup ----------------
@@ -18,15 +18,39 @@ const firebaseConfig = {
   messagingSenderId: "1073801314798",
   appId: "1:1073801314798:web:abd01ae67a5bc9c1eb0eff"
 };
+  
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  // ---------------- Drag-and-Drop Setup ----------------
+  // ---------------- Sortable Options ----------------
   const sortableOptions = { group: 'nested', animation: 150 };
 
-  window.initSortable = function() {
-    new Sortable(document.getElementById("tree"), sortableOptions);
-    document.querySelectorAll("#tree ul").forEach(ul => new Sortable(ul, sortableOptions));
+  function initSortableForTree(treeUl) {
+    new Sortable(treeUl, sortableOptions);
+    treeUl.querySelectorAll("ul").forEach(ul => new Sortable(ul, sortableOptions));
+  }
+
+  window.initPage = function() {
+    addTree(); // Add initial tree on page load
+  };
+
+  // ---------------- Add New Tree ----------------
+  window.addTree = function() {
+    const container = document.getElementById("trees-container");
+    const treeWrapper = document.createElement("div");
+    treeWrapper.className = "tree-wrapper";
+
+    const ul = document.createElement("ul");
+    ul.className = "tree";
+
+    const li = document.createElement("li");
+    li.innerHTML = '<span class="title" contenteditable="true">New Root</span> <button onclick="addItem(this)">+Add</button>';
+    ul.appendChild(li);
+
+    treeWrapper.appendChild(ul);
+    container.appendChild(treeWrapper);
+
+    initSortableForTree(ul);
   };
 
   // ---------------- Add New Item ----------------
@@ -44,13 +68,13 @@ const firebaseConfig = {
     newLi.innerHTML = '<span class="title" contenteditable="true">New Item</span> <button onclick="addItem(this)">+Add</button>';
     childUl.appendChild(newLi);
 
-    // ✅ Step 4a: focus new item immediately
+    // Auto-focus new item
     const span = newLi.querySelector(".title");
     span.focus();
     span.select();
   };
 
-  // ---------------- Convert Tree to JSON ----------------
+  // ---------------- Convert UL to JSON ----------------
   function getHierarchy(ul) {
     return Array.from(ul.children).map(li => {
       const node = { title: li.querySelector(".title").textContent, children: [] };
@@ -60,78 +84,62 @@ const firebaseConfig = {
     });
   }
 
-  // ---------------- Submit to Firebase ----------------
-  window.submitHierarchy = async function() {
-    const hierarchy = getHierarchy(document.getElementById("tree"));
+  function getAllHierarchies() {
+    const hierarchies = [];
+    document.querySelectorAll("#trees-container > .tree-wrapper > ul").forEach(ul => {
+      hierarchies.push(getHierarchy(ul));
+    });
+    return hierarchies;
+  }
 
-    // 🔹 Step 4b: sanitize empty titles
+  // ---------------- Submit All Trees ----------------
+  window.submitAllHierarchies = async function() {
+    const allHierarchies = getAllHierarchies();
+
+    // Sanitize titles
     function sanitizeHierarchy(node) {
       node.title = node.title.trim() || "Untitled";
       if (node.children.length) node.children.forEach(sanitizeHierarchy);
     }
-    hierarchy.forEach(sanitizeHierarchy);
+    allHierarchies.forEach(tree => tree.forEach(sanitizeHierarchy));
 
     const username = document.getElementById("username").value || "Anonymous";
 
     try {
       await addDoc(collection(db, "submissions"), {
         username,
-        hierarchy,
+        hierarchies: allHierarchies,
         timestamp: new Date()
       });
-      alert("Hierarchy submitted successfully!");
+      alert("All hierarchies submitted successfully!");
     } catch (e) {
       console.error("Error adding document: ", e);
-      alert("Failed to submit hierarchy.");
+      alert("Failed to submit hierarchies.");
     }
   };
 </script>
+
 <style>
 body { font-family: sans-serif; margin: 2rem; }
 ul { list-style-type: none; padding-left: 1rem; }
 li { margin: 0.25rem 0; padding: 0.25rem; border: 1px solid #ccc; border-radius: 4px; }
 button { margin-left: 0.5rem; }
-.title { outline: none; } /* remove focus outline if desired */
+.title { outline: none; } /* Remove focus outline if desired */
+.tree-wrapper { margin-bottom: 1rem; padding: 0.5rem; border: 1px solid #aaa; border-radius: 6px; }
 </style>
 </head>
-<body onload="initSortable()">
+<body onload="initPage()">
 
-<h1>Interactive Hierarchy Exercise</h1>
+<h1>Interactive Multi-Tree Hierarchy Exercise</h1>
 <p>Drag items to organize them. Add new items freely. Click on titles to edit them.</p>
 
 <input type="text" id="username" placeholder="Enter your name">
-<button onclick="submitHierarchy()">Submit Hierarchy</button>
+<button onclick="addTree()">+ Add New Tree</button>
+<button onclick="submitAllHierarchies()">Submit All Hierarchies</button>
 
-<ul id="tree">
-  <li>
-    <span class="title" contenteditable="true">Animals</span>
-    <button onclick="addItem(this)">+Add</button>
-    <ul>
-      <li class="leaf">
-        <span class="title" contenteditable="true">Dog</span>
-        <button onclick="addItem(this)">+Add</button>
-      </li>
-      <li class="leaf">
-        <span class="title" contenteditable="true">Cat</span>
-        <button onclick="addItem(this)">+Add</button>
-      </li>
-    </ul>
-  </li>
-  <li>
-    <span class="title" contenteditable="true">Plants</span>
-    <button onclick="addItem(this)">+Add</button>
-    <ul>
-      <li class="leaf">
-        <span class="title" contenteditable="true">Oak</span>
-        <button onclick="addItem(this)">+Add</button>
-      </li>
-      <li class="leaf">
-        <span class="title" contenteditable="true">Rose</span>
-        <button onclick="addItem(this)">+Add</button>
-      </li>
-    </ul>
-  </li>
-</ul>
+<div id="trees-container">
+  <!-- Trees will appear here -->
+</div>
 
 </body>
 </html>
