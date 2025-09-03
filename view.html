@@ -47,8 +47,6 @@ const firebaseConfig = {
     const ul = document.createElement("ul");
     ul.className = "tree-view";
     
-    console.log("renderTree called with:", tree);
-    
     // Handle different possible data structures
     let nodesToRender = [];
     
@@ -62,13 +60,8 @@ const firebaseConfig = {
       nodesToRender = [tree];
     }
     
-    console.log("Nodes to render:", nodesToRender.length, nodesToRender);
-    
     if (nodesToRender.length > 0) {
-      nodesToRender.forEach((node, index) => {
-        console.log(`Rendering node ${index}:`, node);
-        ul.appendChild(renderNode(node, 0));
-      });
+      nodesToRender.forEach(node => ul.appendChild(renderNode(node, 0)));
     } else {
       const li = document.createElement("li");
       li.className = "empty-tree";
