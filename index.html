@@ -89,20 +89,17 @@
     }
 
 function submitResults(username, score, answers) {
-  const url = "https://script.google.com/macros/s/AKfycbyh8nNsET-KREZeUjJsc9ke8QKMobreB9HwozL_PI5DFHTnDGsBmpDC6V0PHLehrL8m/exec"; // replace with your Apps Script web app link
+  const url = "https://script.google.com/macros/s/AKfycbyp8yq-hAH2ynTPM-yrXE7uW0rVsV3mEu-xIQCb4eEMfHJUta5GtKz1WsVYwXa5b1YHGQ/exec"; // replace with new /exec URL
   const payload = { username, score, answers };
 
   fetch(url, {
     method: "POST",
-    mode: "no-cors",   // 🚨 bypasses CORS checks
+    mode: "no-cors",   // bypasses CORS
     body: JSON.stringify(payload),
     headers: { "Content-Type": "application/json" }
   })
-  .then(() => {
-    console.log("Results sent to Google Sheet (no-cors, can't read response).");
-    alert("Your answers were submitted!");
-  })
-  .catch(err => console.error("Error submitting:", err));
+  .then(() => console.log("Results sent"))
+  .catch(err => console.error("Error:", err));
 }
   </script>
 </body>
