@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>View Submitted Hierarchies</title>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js";
+  import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js";
+
+  // 🔹 Replace with your Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyAsGafeMKHVxAeUVAroHj-FqyPiRaDDyqE",
+  authDomain: "test-769a6.firebaseapp.com",
+  projectId: "test-769a6",
+  storageBucket: "test-769a6.firebasestorage.app",
+  messagingSenderId: "1073801314798",
+  appId: "1:1073801314798:web:abd01ae67a5bc9c1eb0eff"
+};
+  
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Recursive function to render a hierarchy as UL/LI
+  function renderHierarchy(tree) {
+    const ul = document.createElement("ul");
+    tree.forEach(node => {
+      const li = document.createElement("li");
+      li.textContent = node.title;
+      if (node.children && node.children.length > 0) {
+        li.appendChild(renderHierarchy(node.children));
+      }
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+
+  async function loadSubmissions() {
+    const container = document.getElementById("submissions");
+    container.innerHTML = "<p>Loading submissions...</p>";
+
+    const submissionsRef = collection(db, "submissions");
+    const q = query(submissionsRef, orderBy("timestamp", "desc"));
+    const snapshot = await getDocs(q);
+
+    container.innerHTML = ""; // Clear loading text
+
+    snapshot.forEach(doc => {
+      const data = doc.data();
+
+      const div = document.createElement("div");
+      div.className = "submission";
+
+      const header = document.createElement("h3");
+      header.textContent = data.username + " (" + new Date(data.timestamp.seconds * 1000).toLocaleString() + ")";
+      div.appendChild(header);
+
+      data.hierarchies.forEach((tree, index) => {
+        const treeHeader = document.createElement("h4");
+        treeHeader.textContent = "Tree " + (index + 1);
+        div.appendChild(treeHeader);
+        div.appendChild(renderHierarchy(tree));
+      });
+
+      container.appendChild(div);
+    });
+  }
+
+  window.onload = loadSubmissions;
+</script>
+<style>
+body { font-family: sans-serif; margin: 2rem; }
+.submission { border: 1px solid #ccc; padding: 1rem; margin-bottom: 1rem; border-radius: 6px; }
+ul { list-style-type: disc; padding-left: 1.5rem; }
+</style>
+</head>
+<body>
+<h1>Submitted Hierarchies</h1>
+<div id="submissions">
+  <!-- Submissions will be loaded here -->
+</div>
+</body>
+</html>
