@@ -23,7 +23,6 @@ const firebaseConfig = {
 
   let tree = { id: Date.now() + Math.random(), nodes: [] };
 
-  // ---------------- Helper Functions ----------------
   function createNode(title) {
     return { id: Date.now() + Math.random(), title: title || "New Item", children: [] };
   }
@@ -51,10 +50,6 @@ const firebaseConfig = {
     return false;
   }
 
-  function saveToLocalStorage() {
-    localStorage.setItem("savedHierarchy", JSON.stringify(tree));
-  }
-
   function renderTree(tree) {
     const container = document.getElementById("trees-container");
     container.innerHTML = "";
@@ -69,7 +64,7 @@ const firebaseConfig = {
 
     container.appendChild(wrapper);
 
-    // Initialize two root nodes with placeholders if empty
+    // Add two root nodes with placeholders if empty
     if (!tree.nodes.length) {
       const root1 = createNode("Root Node 1");
       root1.children.push(createNode("Placeholder 1"));
@@ -80,7 +75,6 @@ const firebaseConfig = {
       root2.children.push(createNode("Placeholder 2"));
 
       tree.nodes.push(root1, root2);
-      saveToLocalStorage();
     }
 
     renderNodes(ul, tree.nodes);
@@ -106,13 +100,10 @@ const firebaseConfig = {
         initSortableForTree(childUl);
       }
 
-      // Update title
       li.querySelector(".title").addEventListener("input", e => {
         node.title = e.target.textContent.trim() || "Untitled";
-        saveToLocalStorage();
       });
 
-      // Add child
       li.querySelector(".add-btn").addEventListener("click", () => {
         const child = createNode();
         node.children.push(child);
@@ -125,19 +116,15 @@ const firebaseConfig = {
 
         renderNodes(childUl, node.children);
         initSortableForTree(childUl);
-        saveToLocalStorage();
       });
 
-      // Delete node
       li.querySelector(".delete-btn").addEventListener("click", () => {
-        // Ensure at least one root node remains
-        if (tree.nodes.length <= 1 && !node.children.length) {
+        if (tree.nodes.length <= 1 && node.children.length === 0) {
           alert("Cannot delete all root nodes.");
           return;
         }
         removeNode(tree.nodes, node.id);
         li.remove();
-        saveToLocalStorage();
       });
     });
   }
@@ -148,10 +135,7 @@ const firebaseConfig = {
       animation: 150,
       fallbackOnBody: true,
       swapThreshold: 0.65,
-      onEnd: () => {
-        updateTreeDataFromDOM(ul);
-        saveToLocalStorage();
-      }
+      onEnd: () => updateTreeDataFromDOM(ul)
     });
   }
 
@@ -176,7 +160,6 @@ const firebaseConfig = {
         tree,
         timestamp: new Date()
       });
-      localStorage.removeItem("savedHierarchy"); // clear draft after submit
       alert("Hierarchy submitted successfully!");
     } catch (e) {
       console.error("Error submitting:", e);
@@ -185,10 +168,6 @@ const firebaseConfig = {
   };
 
   window.onload = function() {
-    const saved = localStorage.getItem("savedHierarchy");
-    if (saved) {
-      tree = JSON.parse(saved);
-    }
     renderTree(tree);
   };
 </script>
@@ -225,7 +204,6 @@ Please do not submit confidential information in this form. Where relevant, cons
 <br>
 <br>
 When you are satisfied, enter your name/initials and click Submit. </p>
-<p style="color:#555;">Note: Your changes are saved locally in this browser automatically. </p>
 
 <input type="text" id="username" placeholder="Enter your name">
 
