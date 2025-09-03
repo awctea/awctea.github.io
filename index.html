@@ -21,10 +21,8 @@ const firebaseConfig = {
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  // ---------------- Tree Data ----------------
   let trees = [];
 
-  // ---------------- Helper Functions ----------------
   function createNode(title) {
     return { id: Date.now() + Math.random(), title: title || "New Item", children: [] };
   }
@@ -52,7 +50,6 @@ const firebaseConfig = {
     return false;
   }
 
-  // ---------------- Render ----------------
   function renderTree(tree) {
     const container = document.getElementById("trees-container");
 
@@ -67,8 +64,10 @@ const firebaseConfig = {
     container.appendChild(wrapper);
 
     if (!tree.nodes.length) {
-      const node = createNode("Root Node");
-      tree.nodes.push(node);
+      const root = createNode("Root Node");
+      root.children.push(createNode("Placeholder 1"));
+      root.children.push(createNode("Placeholder 2"));
+      tree.nodes.push(root);
     }
 
     renderNodes(ul, tree.nodes, tree);
@@ -87,46 +86,45 @@ const firebaseConfig = {
         <button class="add-btn">+Add</button>
         <button class="delete-btn">Delete</button>
       `;
-
       ul.appendChild(li);
 
       if (node.children.length) {
         const childUl = document.createElement("ul");
         li.appendChild(childUl);
         renderNodes(childUl, node.children, tree);
+        initSortableForTree(childUl, tree);
       }
 
-      // Update title on input
       li.querySelector(".title").addEventListener("input", e => {
         node.title = e.target.textContent.trim() || "Untitled";
       });
 
-      // Add child
       li.querySelector(".add-btn").addEventListener("click", () => {
         const child = createNode();
         node.children.push(child);
-        const childUl = li.querySelector("ul") || document.createElement("ul");
-        li.appendChild(childUl);
+
+        let childUl = li.querySelector("ul");
+        if (!childUl) {
+          childUl = document.createElement("ul");
+          li.appendChild(childUl);
+        }
+
         renderNodes(childUl, node.children, tree);
+        initSortableForTree(childUl, tree);
       });
 
-      // Delete node
       li.querySelector(".delete-btn").addEventListener("click", () => {
-        // Optional: prevent deleting the last root node
-        if (!li.closest(".tree-wrapper")) return;
         const treeRootId = tree.nodes[0]?.id;
         if (node.id === treeRootId && tree.nodes.length === 1) {
           alert("Cannot delete the last root node.");
           return;
         }
-
         removeNode(tree.nodes, node.id);
         li.remove();
       });
     });
   }
 
-  // ---------------- Sortable ----------------
   function initSortableForTree(ul, tree) {
     new Sortable(ul, {
       group: 'nested',
@@ -135,14 +133,6 @@ const firebaseConfig = {
       swapThreshold: 0.65,
       onEnd: evt => updateTreeDataFromDOM(tree, ul)
     });
-
-    ul.querySelectorAll("ul").forEach(childUl =>
-      new Sortable(childUl, {
-        group: 'nested',
-        animation: 150,
-        onEnd: evt => updateTreeDataFromDOM(tree, ul)
-      })
-    );
   }
 
   function updateTreeDataFromDOM(tree, ul) {
@@ -158,14 +148,12 @@ const firebaseConfig = {
     tree.nodes = parseUL(ul);
   }
 
-  // ---------------- Add Tree ----------------
   window.addTree = function() {
     const tree = { id: Date.now() + Math.random(), nodes: [] };
     trees.push(tree);
     renderTree(tree);
   };
 
-  // ---------------- Submit ----------------
   window.submitAllHierarchies = async function() {
     const username = document.getElementById("username").value || "Anonymous";
     try {
@@ -189,20 +177,27 @@ const firebaseConfig = {
 <style>
 body { font-family: sans-serif; margin: 2rem; }
 ul { list-style-type: none; padding-left: 1rem; }
-li { margin: 0.25rem 0; padding: 0.25rem; border: 1px solid #ccc; border-radius: 4px; }
+li { margin: 0.1rem 0; padding: 0.25rem 0.5rem; border-radius: 4px; }
+
+li:nth-child(odd) { background: #f0f0f0; }
+li:nth-child(even) { background: #fafafa; }
+
+li li { border-left: 2px solid #ccc; margin-left: 0.5rem; padding-left: 0.5rem; }
+
 button { margin-left: 0.5rem; }
 .title { outline: none; }
+
 .tree-wrapper { margin-bottom: 1rem; padding: 0.5rem; border: 1px solid #aaa; border-radius: 6px; }
 </style>
 </head>
 <body>
 
-<h1>Organize a Shared Drive</h1>
-<p>Drag items to organize them. Add or delete items freely. Click on titles to edit them. </p>
+<h1>Interactive Hierarchy Exercise</h1>
+<p>Drag items to organize them. Add or delete items freely. Click on titles to edit them.</p>
 
 <input type="text" id="username" placeholder="Enter your name">
-<button onclick="addTree()">+ Add New</button>
-<button onclick="submitAllHierarchies()">Submit All</button>
+<button onclick="addTree()">+ Add New Tree</button>
+<button onclick="submitAllHierarchies()">Submit All Hierarchies</button>
 
 <div id="trees-container"></div>
 
