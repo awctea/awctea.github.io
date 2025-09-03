@@ -4,211 +4,196 @@
 <meta charset="UTF-8">
 <title>Shared Drive Organization Exercise</title>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js";
-  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js";
+<style>
+body { font-family: sans-serif; margin: 2rem; }
+ul { list-style: none; padding-left: 1rem; }
+li { margin: 0.3rem 0; padding: 0.4rem 0.6rem; border-radius: 6px; background: #fff;
+     box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; transition: background 0.2s; }
+li:hover { background: #e6f3ff; }
+li > .title { font-weight: 500; margin-right: 0.5rem; }
+ul ul { margin-top: 0.3rem; margin-left: 1.5rem; padding-left: 0.8rem; border-left: 2px solid #ccc; }
+button { border: none; background: transparent; cursor: pointer; padding: 0.2rem 0.4rem; border-radius: 4px; }
+button:hover { background: #f0f4ff; }
+.add-btn { color: #2e7d32; }
+.delete-btn { color: #c62828; }
+.tree-wrapper { margin-bottom: 1rem; padding: 0.5rem; border: 1px solid #aaa; border-radius: 6px; background: #f9f9f9; }
+</style>
+</head>
+<body>
+<h1>Shared Drive Organization Exercise</h1>
+<p>Use the box below to create a structure for our Shared Drive. Add or delete items using the buttons.
+Click on titles to edit. Avoid confidential info.</p>
 
-const firebaseConfig = {
+<input id="username" placeholder="Enter your name">
+<div id="trees-container"></div>
+<button onclick="submitHierarchy()">Submit</button>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js";
+import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js";
+
+const app = initializeApp({
   apiKey: "AIzaSyAsGafeMKHVxAeUVAroHj-FqyPiRaDDyqE",
   authDomain: "test-769a6.firebaseapp.com",
   projectId: "test-769a6",
   storageBucket: "test-769a6.firebasestorage.app",
   messagingSenderId: "1073801314798",
   appId: "1:1073801314798:web:abd01ae67a5bc9c1eb0eff"
+});
+const db = getFirestore(app);
+
+let tree = { id: Date.now() + Math.random(), nodes: [] };
+
+function createNode(title) {
+  return { id: Date.now() + Math.random(), title: title || "New Item", children: [] };
+}
+
+function findNode(nodes, id) {
+  if (!Array.isArray(nodes)) return null;
+  for (const n of nodes) {
+    if (!n) continue;
+    if (n.id === id) return n;
+    const child = n.children ? findNode(n.children, id) : null;
+    if (child) return child;
+  }
+  return null;
+}
+
+function removeNode(nodes, id) {
+  if (!Array.isArray(nodes)) return false;
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (!n) continue;
+    if (n.id === id) { nodes.splice(i,1); return true; }
+    if (Array.isArray(n.children) && n.children.length > 0) {
+      if (removeNode(n.children, id)) return true;
+    }
+  }
+  return false;
+}
+
+function isDescendant(targetId, parentId, nodes) {
+  const parent = findNode(nodes, parentId);
+  if (!parent || !parent.children) return false;
+  for (const c of parent.children) {
+    if (!c) continue;
+    if (c.id === targetId || isDescendant(targetId, c.id, nodes)) return true;
+  }
+  return false;
+}
+
+function buildNodesFromUL(ul, existing) {
+  const byId = new Map();
+  (function index(nodes) {
+    if (!Array.isArray(nodes)) return;
+    for (const n of nodes) {
+      if (n && n.id !== undefined) {
+        byId.set(n.id, n);
+        if (Array.isArray(n.children)) index(n.children);
+      }
+    }
+  })(existing || []);
+
+  function build(ulEl) {
+    const result = [];
+    Array.from(ulEl.children).forEach(li => {
+      if (!(li instanceof HTMLElement) || li.tagName !== 'LI') return;
+      let idNum = li.dataset.nodeId ? Number(li.dataset.nodeId) : NaN;
+      if (isNaN(idNum)) { idNum = Date.now() + Math.random(); li.dataset.nodeId = idNum; }
+      let node = byId.get(idNum);
+      const title = li.querySelector('.title')?.textContent?.trim() || 'Untitled';
+      if (!node) node = { id: idNum, title, children: [] };
+      else { node.title = title; node.children = []; }
+      const childUl = Array.from(li.children).find(c => c.tagName==='UL');
+      if (childUl) node.children = build(childUl);
+      result.push(node);
+    });
+    return result;
+  }
+
+  return build(ul);
+}
+
+function renderTree(t) {
+  const container = document.getElementById("trees-container");
+  container.innerHTML = "";
+  const wrapper = document.createElement("div");
+  wrapper.className = "tree-wrapper";
+  wrapper.dataset.treeId = t.id;
+  const ul = document.createElement("ul"); ul.className="tree"; wrapper.appendChild(ul);
+  container.appendChild(wrapper);
+
+  if (!t.nodes.length) {
+    const r1 = createNode("Admin"); r1.children.push(createNode("Placeholder 1"), createNode("Placeholder 2"));
+    const r2 = createNode("Category A"); r2.children.push(createNode("Placeholder 1"), createNode("Placeholder 2"));
+    t.nodes.push(r1,r2);
+  }
+
+  renderNodes(ul, t.nodes, t);
+  initSortableForTree(ul);
+}
+
+function renderNodes(ul,nodes,t){
+  ul.innerHTML="";
+  nodes.forEach(n=>{
+    if(!n)return;
+    const li=document.createElement("li"); li.dataset.nodeId=n.id;
+    li.innerHTML=`<span class="title" contenteditable="true">${n.title}</span>
+                  <button class="add-btn">➕</button><button class="delete-btn">🗑️</button>`;
+    ul.appendChild(li);
+
+    if(n.children.length){
+      const childUl=document.createElement("ul"); li.appendChild(childUl);
+      renderNodes(childUl,n.children,t); initSortableForTree(childUl);
+    }
+
+    li.querySelector(".title").addEventListener("input", e=>{ n.title=e.target.textContent.trim()||"Untitled"; });
+    li.querySelector(".add-btn").addEventListener("click", ()=>{
+      const c = createNode(); n.children.push(c);
+      let cu = Array.from(li.children).find(c=>c.tagName==='UL'); if(!cu){cu=document.createElement("ul"); li.appendChild(cu);}
+      renderNodes(cu,n.children,t); initSortableForTree(cu);
+    });
+    li.querySelector(".delete-btn").addEventListener("click", ()=>{
+      const rootUl=document.querySelector(".tree"); if(rootUl) tree.nodes=buildNodesFromUL(rootUl,tree.nodes);
+      const isRoot=t.nodes.some(x=>x.id===n.id); if(isRoot && t.nodes.length<=1){alert("Cannot delete all root nodes."); return;}
+      removeNode(t.nodes,n.id); li.remove();
+    });
+  });
+}
+
+function initSortableForTree(ul){
+  new Sortable(ul,{
+    group:'nested', animation:150, fallbackOnBody:true, swapThreshold:.65,
+    onEnd:e=>{
+      const rootUl=document.querySelector(".tree"); if(rootUl) tree.nodes=buildNodesFromUL(rootUl,tree.nodes);
+      if(e.item && e.to){
+        const movedId=Number(e.item.dataset.nodeId);
+        const newParentLi=e.to.closest('li');
+        if(newParentLi){
+          const newParentId=Number(newParentLi.dataset.nodeId);
+          if(isDescendant(newParentId,movedId,tree.nodes)){
+            const movedNode=findNode(tree.nodes,movedId);
+            removeNode(tree.nodes,movedId);
+            if(movedNode) tree.nodes.push(movedNode);
+            renderTree(tree);
+            alert("Invalid drop: cannot move a node into its descendant. Node returned to root.");
+          }
+        }
+      }
+    }
+  });
+}
+
+window.submitHierarchy=async()=>{
+  const username=document.getElementById("username").value||"Anonymous";
+  try{
+    const rootUl=document.querySelector(".tree"); if(rootUl) tree.nodes=buildNodesFromUL(rootUl,tree.nodes);
+    await addDoc(collection(db,"submissions"), { username, tree, timestamp:new Date() });
+    alert("Hierarchy submitted successfully!");
+  } catch(e){ console.error(e); alert("Failed to submit hierarchy."); }
 };
 
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-
-  let tree = { id: Date.now() + Math.random(), nodes: [] };
-
-  function createNode(title) {
-    return { id: Date.now() + Math.random(), title: title || "New Item", children: [] };
-  }
-
-  function findNode(nodes, id) {
-    for (const n of nodes) {
-      if (n.id === id) return n;
-      const child = findNode(n.children, id);
-      if (child) return child;
-    }
-    return null;
-  }
-
-  function removeNode(nodes, id) {
-    for (let i = 0; i < nodes.length; i++) {
-      if (nodes[i].id === id) {
-        nodes.splice(i, 1);
-        return true;
-      }
-      if (nodes[i].children.length > 0) {
-        const removed = removeNode(nodes[i].children, id);
-        if (removed) return true;
-      }
-    }
-    return false;
-  }
-
-  function renderTree(tree) {
-    const container = document.getElementById("trees-container");
-    container.innerHTML = "";
-
-    const wrapper = document.createElement("div");
-    wrapper.className = "tree-wrapper";
-    wrapper.dataset.treeId = tree.id;
-
-    const ul = document.createElement("ul");
-    ul.className = "tree";
-    wrapper.appendChild(ul);
-
-    container.appendChild(wrapper);
-
-    // Initialize two root nodes with placeholders if empty
-    if (!tree.nodes.length) {
-      const root1 = createNode("Admin");
-      root1.children.push(createNode("Placeholder 1"));
-      root1.children.push(createNode("Placeholder 2"));
-
-      const root2 = createNode("Category A");
-      root2.children.push(createNode("Placeholder 1"));
-      root2.children.push(createNode("Placeholder 2"));
-
-      tree.nodes.push(root1, root2);
-    }
-
-    renderNodes(ul, tree.nodes);
-    initSortableForTree(ul);
-  }
-
-  function renderNodes(ul, nodes) {
-    ul.innerHTML = "";
-    nodes.forEach(node => {
-      const li = document.createElement("li");
-      li.dataset.nodeId = node.id;
-      li.innerHTML = `
-        <span class="title" contenteditable="true">${node.title}</span>
-        <button class="add-btn">+Add</button>
-        <button class="delete-btn">Delete</button>
-      `;
-      ul.appendChild(li);
-
-      if (node.children.length) {
-        const childUl = document.createElement("ul");
-        li.appendChild(childUl);
-        renderNodes(childUl, node.children);
-        initSortableForTree(childUl);
-      }
-
-      // Update title
-      li.querySelector(".title").addEventListener("input", e => {
-        node.title = e.target.textContent.trim() || "Untitled";
-      });
-
-      // Add child
-      li.querySelector(".add-btn").addEventListener("click", () => {
-        const child = createNode();
-        node.children.push(child);
-
-        let childUl = li.querySelector("ul");
-        if (!childUl) {
-          childUl = document.createElement("ul");
-          li.appendChild(childUl);
-        }
-
-        renderNodes(childUl, node.children);
-        initSortableForTree(childUl);
-      });
-
-      // Delete node
-      li.querySelector(".delete-btn").addEventListener("click", () => {
-        const ulRoot = document.querySelector(".tree");
-        updateTreeDataFromDOM(ulRoot);
-
-        const isRootNode = tree.nodes.some(n => n.id === node.id);
-
-        if (isRootNode && tree.nodes.length <= 1) {
-          alert("Cannot delete all root nodes.");
-          return;
-        }
-
-        removeNode(tree.nodes, node.id);
-        li.remove();
-      });
-    });
-  }
-
-  function initSortableForTree(ul) {
-    new Sortable(ul, {
-      group: 'nested',
-      animation: 150,
-      fallbackOnBody: true,
-      swapThreshold: 0.65,
-      onEnd: () => {
-        const ulRoot = document.querySelector(".tree");
-        updateTreeDataFromDOM(ulRoot);
-      }
-    });
-  }
-
-  function updateTreeDataFromDOM(ul) {
-    function parseUL(ul) {
-      return Array.from(ul.children).map(li => {
-        const nodeId = li.dataset.nodeId;
-        const node = findNode(tree.nodes, Number(nodeId));
-        const childUl = li.querySelector("ul");
-        if (childUl) node.children = parseUL(childUl);
-        return node;
-      });
-    }
-    tree.nodes = parseUL(ul);
-  }
-
-  window.submitHierarchy = async function() {
-    const username = document.getElementById("username").value || "Anonymous";
-    try {
-      await addDoc(collection(db, "submissions"), {
-        username,
-        tree,
-        timestamp: new Date()
-      });
-      alert("Hierarchy submitted successfully!");
-    } catch (e) {
-      console.error("Error submitting:", e);
-      alert("Failed to submit hierarchy.");
-    }
-  };
-
-  window.onload = function() {
-    renderTree(tree);
-  };
+window.onload=()=>{ renderTree(tree); };
 </script>
-
-<style>
-body { font-family: sans-serif; margin: 2rem; }
-ul { list-style-type: none; padding-left: 1rem; }
-li { margin: 0.1rem 0; padding: 0.25rem 0.5rem; border-radius: 4px; }
-li:nth-child(odd) { background: #f0f0f0; }
-li:nth-child(even) { background: #fafafa; }
-li li { border-left: 2px solid #ccc; margin-left: 0.5rem; padding-left: 0.5rem; }
-li:hover { background-color: #d0ebff; }
-.sortable-chosen { background-color: #a0d2ff !important; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
-.sortable-ghost { opacity: 0.5; }
-button { margin-left: 0.5rem; }
-.title { outline: none; }
-.tree-wrapper { margin-bottom: 1rem; padding: 0.5rem; border: 1px solid #aaa; border-radius: 6px; }
-</style>
-</head>
-<body>
-
-<h1>Shared Drive Organization Exercise</h1>
-
-<p>Use the box below to create a structure for our Shared Drive. Add or delete items using the buttons. Drag items to organize them inside or outside the highlighted areas. Click on titles to edit them. You may focus on items/areas more relevant to your work (or be comprehensive if you like a challenge!).<br><br>
-Please do not submit confidential information in this form. Where relevant, consider using more general terms or placeholder names like "Partner A".<br><br>
-Note: Your changes are NOT saved automatically. Be sure to click <b>Submit</b> when finished, or your work will be lost.</p>
-
-<input type="text" id="username" placeholder="Enter your name">
-<div id="trees-container"></div>
-<button onclick="submitHierarchy()">Submit</button>
-
 </body>
 </html>
