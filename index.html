@@ -20,17 +20,11 @@ const firebaseConfig = {
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  let tree = { id: generateId(), nodes: [] };
-  let sortableInstances = new Map(); // Track sortable instances
-  let nodeCounter = 0; // Better ID generation
-
-  // Improved ID generation
-  function generateId() {
-    return `node_${Date.now()}_${++nodeCounter}_${Math.random().toString(36).substr(2, 9)}`;
-  }
+  let tree = { id: Date.now() + Math.random(), nodes: [] };
+  let idCounter = 0; // Add counter to make IDs more unique
 
   function createNode(title) {
-    return { id: generateId(), title: title || "New Item", children: [] };
+    return { id: Date.now() + Math.random() + (++idCounter), title: title || "New Item", children: [] };
   }
 
   function findNode(nodes, id) {
@@ -56,21 +50,8 @@ const firebaseConfig = {
     return false;
   }
 
-  // Clean up all sortable instances
-  function destroyAllSortables() {
-    sortableInstances.forEach(sortable => {
-      if (sortable && sortable.destroy) {
-        sortable.destroy();
-      }
-    });
-    sortableInstances.clear();
-  }
-
   function renderTree(tree) {
     const container = document.getElementById("trees-container");
-    
-    // Clean up existing sortables before re-render
-    destroyAllSortables();
     container.innerHTML = "";
 
     const wrapper = document.createElement("div");
@@ -102,361 +83,165 @@ const firebaseConfig = {
 
   function renderNodes(ul, nodes) {
     ul.innerHTML = "";
-    
     nodes.forEach(node => {
       const li = document.createElement("li");
       li.dataset.nodeId = node.id;
       li.innerHTML = `
-        <span class="title" contenteditable="true">${escapeHtml(node.title)}</span>
-        <button class="add-btn" type="button">+Add</button>
-        <button class="delete-btn" type="button">Delete</button>
+        <span class="title" contenteditable="true">${node.title}</span>
+        <button class="add-btn">+Add</button>
+        <button class="delete-btn">Delete</button>
       `;
       ul.appendChild(li);
 
       if (node.children.length) {
         const childUl = document.createElement("ul");
-        childUl.className = "child-list";
         li.appendChild(childUl);
         renderNodes(childUl, node.children);
         initSortableForTree(childUl);
       }
-    });
 
-    // Add event listeners using event delegation at container level
-    setupEventListeners(ul);
-  }
+      // Update title
+      const titleSpan = li.querySelector(".title");
+      titleSpan.addEventListener("input", e => {
+        node.title = e.target.textContent.trim() || "Untitled";
+      });
 
-  // Event delegation to avoid duplicate listeners
-  function setupEventListeners(container) {
-    // Remove existing listeners to prevent duplicates
-    const newContainer = container.cloneNode(true);
-    container.parentNode.replaceChild(newContainer, container);
-    
-    newContainer.addEventListener('input', (e) => {
-      if (e.target.classList.contains('title')) {
-        const nodeId = e.target.closest('li').dataset.nodeId;
-        const node = findNode(tree.nodes, nodeId);
-        if (node) {
-          node.title = e.target.textContent.trim() || "Untitled";
+      // Prevent multiple event listeners on the same element
+      titleSpan.addEventListener("blur", e => {
+        // Clean up the text content
+        e.target.textContent = e.target.textContent.trim() || "Untitled";
+      });
+
+      // Add child
+      const addBtn = li.querySelector(".add-btn");
+      addBtn.addEventListener("click", () => {
+        const child = createNode();
+        node.children.push(child);
+
+        let childUl = li.querySelector("ul");
+        if (!childUl) {
+          childUl = document.createElement("ul");
+          li.appendChild(childUl);
         }
-      }
+
+        renderNodes(childUl, node.children);
+        initSortableForTree(childUl);
+      });
+
+      // Delete node
+      const deleteBtn = li.querySelector(".delete-btn");
+      deleteBtn.addEventListener("click", () => {
+        const ulRoot = document.querySelector(".tree");
+        
+        // Update tree data before deletion
+        updateTreeDataFromDOM(ulRoot);
+
+        const isRootNode = tree.nodes.some(n => n.id === node.id);
+
+        if (isRootNode && tree.nodes.length <= 1) {
+          alert("Cannot delete all root nodes.");
+          return;
+        }
+
+        // Remove from data structure
+        if (removeNode(tree.nodes, node.id)) {
+          li.remove();
+          // Update the tree data after DOM change
+          setTimeout(() => updateTreeDataFromDOM(ulRoot), 0);
+        }
+      });
     });
-
-    newContainer.addEventListener('click', (e) => {
-      const li = e.target.closest('li');
-      if (!li) return;
-      
-      const nodeId = li.dataset.nodeId;
-      const node = findNode(tree.nodes, nodeId);
-      if (!node) return;
-
-      if (e.target.classList.contains('add-btn')) {
-        handleAddChild(node, li);
-      } else if (e.target.classList.contains('delete-btn')) {
-        handleDeleteNode(node, li);
-      }
-    });
-  }
-
-  function handleAddChild(node, li) {
-    const child = createNode();
-    node.children.push(child);
-
-    let childUl = li.querySelector("ul");
-    if (!childUl) {
-      childUl = document.createElement("ul");
-      childUl.className = "child-list";
-      li.appendChild(childUl);
-    }
-
-    renderNodes(childUl, node.children);
-    initSortableForTree(childUl);
-  }
-
-  function handleDeleteNode(node, li) {
-    const isRootNode = tree.nodes.some(n => n.id === node.id);
-
-    if (isRootNode && tree.nodes.length <= 1) {
-      alert("Cannot delete all root nodes.");
-      return;
-    }
-
-    if (node.children.length > 0) {
-      if (!confirm(`This will delete "${node.title}" and all its children. Continue?`)) {
-        return;
-      }
-    }
-
-    // Clean up sortable for this node's children
-    const childUl = li.querySelector('ul');
-    if (childUl) {
-      const sortableId = childUl.dataset.sortableId;
-      if (sortableId && sortableInstances.has(sortableId)) {
-        sortableInstances.get(sortableId).destroy();
-        sortableInstances.delete(sortableId);
-      }
-    }
-
-    removeNode(tree.nodes, node.id);
-    li.remove();
   }
 
   function initSortableForTree(ul) {
-    // Generate unique ID for this sortable instance
-    const sortableId = generateId();
-    ul.dataset.sortableId = sortableId;
+    // Check if sortable already exists
+    if (ul._sortable) {
+      ul._sortable.destroy();
+    }
 
     const sortable = new Sortable(ul, {
       group: 'nested',
       animation: 150,
       fallbackOnBody: true,
       swapThreshold: 0.65,
-      ghostClass: 'sortable-ghost',
-      chosenClass: 'sortable-chosen',
-      dragClass: 'sortable-drag',
-      onStart: (evt) => {
-        // Add visual feedback
-        evt.item.style.opacity = '0.8';
-      },
-      onEnd: (evt) => {
-        // Remove visual feedback
-        evt.item.style.opacity = '';
-        
-        // Debounce the tree update
-        clearTimeout(window.treeUpdateTimeout);
-        window.treeUpdateTimeout = setTimeout(() => {
-          updateTreeDataFromDOM();
-        }, 100);
+      onEnd: () => {
+        const ulRoot = document.querySelector(".tree");
+        // Use setTimeout to ensure DOM is settled
+        setTimeout(() => updateTreeDataFromDOM(ulRoot), 50);
       }
     });
 
-    sortableInstances.set(sortableId, sortable);
+    // Store reference to sortable for cleanup
+    ul._sortable = sortable;
   }
 
-  function updateTreeDataFromDOM() {
-    const ulRoot = document.querySelector(".tree");
-    if (!ulRoot) return;
+  function updateTreeDataFromDOM(ul) {
+    if (!ul) return;
 
     function parseUL(ul) {
       const result = [];
       Array.from(ul.children).forEach(li => {
-        const nodeId = li.dataset.nodeId;
+        const nodeId = parseFloat(li.dataset.nodeId); // Convert back to number
         const node = findNode(tree.nodes, nodeId);
         if (node) {
-          // Create a fresh copy to avoid reference issues
-          const newNode = {
-            id: node.id,
-            title: node.title,
-            children: []
-          };
-          
-          const childUl = li.querySelector("ul.child-list");
+          // Update children array
+          const childUl = li.querySelector("ul");
           if (childUl) {
-            newNode.children = parseUL(childUl);
+            node.children = parseUL(childUl);
+          } else {
+            node.children = [];
           }
-          result.push(newNode);
+          result.push(node);
         }
       });
       return result;
     }
     
     try {
-      tree.nodes = parseUL(ulRoot);
+      tree.nodes = parseUL(ul);
     } catch (error) {
-      console.error('Error updating tree data:', error);
-      // Could add user notification here
+      console.error("Error updating tree data:", error);
     }
   }
 
-  // Utility function to escape HTML
-  function escapeHtml(text) {
-    const map = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, (m) => map[m]);
-  }
-
   window.submitHierarchy = async function() {
-    const username = document.getElementById("username").value.trim() || "Anonymous";
-    const submitBtn = document.querySelector('button[onclick="submitHierarchy()"]');
+    const username = document.getElementById("username").value || "Anonymous";
     
-    // Disable button and show loading state
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Submitting...';
+    // Final sync before submission
+    const ulRoot = document.querySelector(".tree");
+    updateTreeDataFromDOM(ulRoot);
     
     try {
-      // Final sync before submission
-      updateTreeDataFromDOM();
-      
       await addDoc(collection(db, "submissions"), {
         username,
         tree,
-        timestamp: new Date(),
-        nodeCount: countNodes(tree.nodes)
+        timestamp: new Date()
       });
       alert("Hierarchy submitted successfully!");
     } catch (e) {
       console.error("Error submitting:", e);
-      alert("Failed to submit hierarchy. Please try again.");
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Submit';
+      alert("Failed to submit hierarchy.");
     }
   };
-
-  function countNodes(nodes) {
-    let count = 0;
-    nodes.forEach(node => {
-      count++;
-      count += countNodes(node.children);
-    });
-    return count;
-  }
 
   window.onload = function() {
     renderTree(tree);
   };
-
-  // Clean up on page unload
-  window.addEventListener('beforeunload', () => {
-    destroyAllSortables();
-  });
 </script>
 
 <style>
-body { 
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-  margin: 2rem; 
-  line-height: 1.5;
-}
-
-ul { 
-  list-style-type: none; 
-  padding-left: 1rem; 
-  margin: 0;
-}
-
-li { 
-  margin: 0.25rem 0; 
-  padding: 0.5rem; 
-  border-radius: 6px; 
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  transition: all 0.2s ease;
-  position: relative;
-}
-
-li:hover { 
-  background-color: #e3f2fd; 
-  border-color: #2196f3;
-}
-
-li li { 
-  border-left: 3px solid #ddd; 
-  margin-left: 1rem; 
-  margin-top: 0.5rem;
-}
-
-.sortable-chosen { 
-  background-color: #bbdefb !important; 
-  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
-  transform: scale(1.02);
-}
-
-.sortable-ghost { 
-  opacity: 0.4; 
-  background-color: #f5f5f5 !important;
-}
-
-.sortable-drag {
-  transform: rotate(5deg);
-}
-
-button { 
-  margin-left: 0.5rem; 
-  padding: 0.25rem 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: white;
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: all 0.2s ease;
-}
-
-button:hover {
-  background: #f0f0f0;
-  transform: translateY(-1px);
-}
-
-button:active {
-  transform: translateY(0);
-}
-
-.delete-btn:hover {
-  background: #ffebee;
-  border-color: #f44336;
-  color: #f44336;
-}
-
-.add-btn:hover {
-  background: #e8f5e8;
-  border-color: #4caf50;
-  color: #4caf50;
-}
-
-.title { 
-  outline: none; 
-  font-weight: 500;
-  min-width: 50px;
-  display: inline-block;
-}
-
-.title:focus {
-  background: #fff3e0;
-  border-radius: 2px;
-  padding: 2px 4px;
-}
-
-.tree-wrapper { 
-  margin-bottom: 2rem; 
-  padding: 1rem; 
-  border: 2px solid #dee2e6; 
-  border-radius: 8px;
-  background: white;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-#username {
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  margin-bottom: 1rem;
-  font-size: 1rem;
-  width: 300px;
-}
-
-button[onclick="submitHierarchy()"] {
-  background: #2196f3;
-  color: white;
-  border: none;
-  padding: 0.75rem 2rem;
-  font-size: 1rem;
-  border-radius: 6px;
-  margin-top: 1rem;
-}
-
-button[onclick="submitHierarchy()"]:hover:not(:disabled) {
-  background: #1976d2;
-}
-
-button[onclick="submitHierarchy()"]:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
+body { font-family: sans-serif; margin: 2rem; }
+ul { list-style-type: none; padding-left: 1rem; }
+li { margin: 0.1rem 0; padding: 0.25rem 0.5rem; border-radius: 4px; }
+li:nth-child(odd) { background: #f0f0f0; }
+li:nth-child(even) { background: #fafafa; }
+li li { border-left: 2px solid #ccc; margin-left: 0.5rem; padding-left: 0.5rem; }
+li:hover { background-color: #d0ebff; }
+.sortable-chosen { background-color: #a0d2ff !important; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+.sortable-ghost { opacity: 0.5; }
+button { margin-left: 0.5rem; }
+.title { outline: none; }
+.tree-wrapper { margin-bottom: 1rem; padding: 0.5rem; border: 1px solid #aaa; border-radius: 6px; }
 </style>
 </head>
 <body>
