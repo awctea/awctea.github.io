@@ -9,19 +9,19 @@
   import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js";
 
   // 🔹 Replace with your Firebase Web App config
-const firebaseConfig = {
-  apiKey: "AIzaSyAsGafeMKHVxAeUVAroHj-FqyPiRaDDyqE",
-  authDomain: "test-769a6.firebaseapp.com",
-  projectId: "test-769a6",
-  storageBucket: "test-769a6.firebasestorage.app",
-  messagingSenderId: "1073801314798",
-  appId: "1:1073801314798:web:abd01ae67a5bc9c1eb0eff"
-};
-  
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_STORAGE_BUCKET",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  let trees = [];
+  let tree = { id: Date.now() + Math.random(), nodes: [] };
 
   function createNode(title) {
     return { id: Date.now() + Math.random(), title: title || "New Item", children: [] };
@@ -52,6 +52,7 @@ const firebaseConfig = {
 
   function renderTree(tree) {
     const container = document.getElementById("trees-container");
+    container.innerHTML = "";
 
     const wrapper = document.createElement("div");
     wrapper.className = "tree-wrapper";
@@ -63,20 +64,24 @@ const firebaseConfig = {
 
     container.appendChild(wrapper);
 
+    // Add two root nodes with placeholders if empty
     if (!tree.nodes.length) {
-      const root = createNode("Root Node");
-      root.children.push(createNode("Placeholder 1"));
-      root.children.push(createNode("Placeholder 2"));
-      tree.nodes.push(root);
+      const root1 = createNode("Root Node 1");
+      root1.children.push(createNode("Placeholder 1"));
+      root1.children.push(createNode("Placeholder 2"));
+
+      const root2 = createNode("Root Node 2");
+      root2.children.push(createNode("Placeholder 1"));
+      root2.children.push(createNode("Placeholder 2"));
+
+      tree.nodes.push(root1, root2);
     }
 
-    renderNodes(ul, tree.nodes, tree);
-    initSortableForTree(ul, tree);
-
-    return wrapper;
+    renderNodes(ul, tree.nodes);
+    initSortableForTree(ul);
   }
 
-  function renderNodes(ul, nodes, tree) {
+  function renderNodes(ul, nodes) {
     ul.innerHTML = "";
     nodes.forEach(node => {
       const li = document.createElement("li");
@@ -91,8 +96,8 @@ const firebaseConfig = {
       if (node.children.length) {
         const childUl = document.createElement("ul");
         li.appendChild(childUl);
-        renderNodes(childUl, node.children, tree);
-        initSortableForTree(childUl, tree);
+        renderNodes(childUl, node.children);
+        initSortableForTree(childUl);
       }
 
       li.querySelector(".title").addEventListener("input", e => {
@@ -109,14 +114,13 @@ const firebaseConfig = {
           li.appendChild(childUl);
         }
 
-        renderNodes(childUl, node.children, tree);
-        initSortableForTree(childUl, tree);
+        renderNodes(childUl, node.children);
+        initSortableForTree(childUl);
       });
 
       li.querySelector(".delete-btn").addEventListener("click", () => {
-        const treeRootId = tree.nodes[0]?.id;
-        if (node.id === treeRootId && tree.nodes.length === 1) {
-          alert("Cannot delete the last root node.");
+        if (tree.nodes.length <= 1 && node.children.length === 0) {
+          alert("Cannot delete all root nodes.");
           return;
         }
         removeNode(tree.nodes, node.id);
@@ -125,17 +129,17 @@ const firebaseConfig = {
     });
   }
 
-  function initSortableForTree(ul, tree) {
+  function initSortableForTree(ul) {
     new Sortable(ul, {
       group: 'nested',
       animation: 150,
       fallbackOnBody: true,
       swapThreshold: 0.65,
-      onEnd: evt => updateTreeDataFromDOM(tree, ul)
+      onEnd: () => updateTreeDataFromDOM(ul)
     });
   }
 
-  function updateTreeDataFromDOM(tree, ul) {
+  function updateTreeDataFromDOM(ul) {
     function parseUL(ul) {
       return Array.from(ul.children).map(li => {
         const nodeId = li.dataset.nodeId;
@@ -148,29 +152,23 @@ const firebaseConfig = {
     tree.nodes = parseUL(ul);
   }
 
-  window.addTree = function() {
-    const tree = { id: Date.now() + Math.random(), nodes: [] };
-    trees.push(tree);
-    renderTree(tree);
-  };
-
-  window.submitAllHierarchies = async function() {
+  window.submitHierarchy = async function() {
     const username = document.getElementById("username").value || "Anonymous";
     try {
       await addDoc(collection(db, "submissions"), {
         username,
-        trees,
+        tree,
         timestamp: new Date()
       });
-      alert("Hierarchies submitted successfully!");
+      alert("Hierarchy submitted successfully!");
     } catch (e) {
       console.error("Error submitting:", e);
-      alert("Failed to submit hierarchies.");
+      alert("Failed to submit hierarchy.");
     }
   };
 
   window.onload = function() {
-    addTree();
+    renderTree(tree);
   };
 </script>
 
@@ -179,30 +177,21 @@ body { font-family: sans-serif; margin: 2rem; }
 ul { list-style-type: none; padding-left: 1rem; }
 li { margin: 0.1rem 0; padding: 0.25rem 0.5rem; border-radius: 4px; }
 
+/* alternating background for readability */
 li:nth-child(odd) { background: #f0f0f0; }
 li:nth-child(even) { background: #fafafa; }
 
+/* nested children vertical line */
 li li { border-left: 2px solid #ccc; margin-left: 0.5rem; padding-left: 0.5rem; }
+
+/* hover and drag highlights */
+li:hover { background-color: #d0ebff; }
+.sortable-chosen { background-color: #a0d2ff !important; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+.sortable-ghost { opacity: 0.5; }
 
 button { margin-left: 0.5rem; }
 .title { outline: none; }
-
 .tree-wrapper { margin-bottom: 1rem; padding: 0.5rem; border: 1px solid #aaa; border-radius: 6px; }
-/* Highlight node on hover */
-li:hover {
-  background-color: #d0ebff;
-}
-
-/* Highlight dragged node */
-.sortable-chosen {
-  background-color: #a0d2ff !important;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-}
-
-/* Placeholder during drag */
-.sortable-ghost {
-  opacity: 0.5;
-}
 </style>
 </head>
 <body>
@@ -211,8 +200,7 @@ li:hover {
 <p>Drag items to organize them. Add or delete items freely. Click on titles to edit them.</p>
 
 <input type="text" id="username" placeholder="Enter your name">
-<button onclick="addTree()">+ Add New Tree</button>
-<button onclick="submitAllHierarchies()">Submit All Hierarchies</button>
+<button onclick="submitHierarchy()">Submit Hierarchy</button>
 
 <div id="trees-container"></div>
 
