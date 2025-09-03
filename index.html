@@ -21,10 +21,9 @@ const firebaseConfig = {
   const db = getFirestore(app);
 
   let tree = { id: Date.now() + Math.random(), nodes: [] };
-  let idCounter = 0; // Add counter to make IDs more unique
 
   function createNode(title) {
-    return { id: Date.now() + Math.random() + (++idCounter), title: title || "New Item", children: [] };
+    return { id: Date.now() + Math.random(), title: title || "New Item", children: [] };
   }
 
   function findNode(nodes, id) {
@@ -51,10 +50,7 @@ const firebaseConfig = {
   }
 
   function renderTree(tree) {
-    console.log("renderTree called with:", tree);
     const container = document.getElementById("trees-container");
-    console.log("Container found:", container);
-    
     container.innerHTML = "";
 
     const wrapper = document.createElement("div");
@@ -66,11 +62,9 @@ const firebaseConfig = {
     wrapper.appendChild(ul);
 
     container.appendChild(wrapper);
-    console.log("Wrapper and UL added to container");
 
     // Initialize two root nodes with placeholders if empty
     if (!tree.nodes.length) {
-      console.log("Initializing default nodes");
       const root1 = createNode("Admin");
       root1.children.push(createNode("Placeholder 1"));
       root1.children.push(createNode("Placeholder 2"));
@@ -80,12 +74,10 @@ const firebaseConfig = {
       root2.children.push(createNode("Placeholder 2"));
 
       tree.nodes.push(root1, root2);
-      console.log("Default nodes created:", tree.nodes);
     }
 
     renderNodes(ul, tree.nodes);
     initSortableForTree(ul);
-    console.log("renderTree completed");
   }
 
   function renderNodes(ul, nodes) {
@@ -108,20 +100,12 @@ const firebaseConfig = {
       }
 
       // Update title
-      const titleSpan = li.querySelector(".title");
-      titleSpan.addEventListener("input", e => {
+      li.querySelector(".title").addEventListener("input", e => {
         node.title = e.target.textContent.trim() || "Untitled";
       });
 
-      // Prevent multiple event listeners on the same element
-      titleSpan.addEventListener("blur", e => {
-        // Clean up the text content
-        e.target.textContent = e.target.textContent.trim() || "Untitled";
-      });
-
       // Add child
-      const addBtn = li.querySelector(".add-btn");
-      addBtn.addEventListener("click", () => {
+      li.querySelector(".add-btn").addEventListener("click", () => {
         const child = createNode();
         node.children.push(child);
 
@@ -136,11 +120,8 @@ const firebaseConfig = {
       });
 
       // Delete node
-      const deleteBtn = li.querySelector(".delete-btn");
-      deleteBtn.addEventListener("click", () => {
+      li.querySelector(".delete-btn").addEventListener("click", () => {
         const ulRoot = document.querySelector(".tree");
-        
-        // Update tree data before deletion
         updateTreeDataFromDOM(ulRoot);
 
         const isRootNode = tree.nodes.some(n => n.id === node.id);
@@ -150,94 +131,40 @@ const firebaseConfig = {
           return;
         }
 
-        // Remove from data structure
-        if (removeNode(tree.nodes, node.id)) {
-          li.remove();
-          // Update the tree data after DOM change
-          setTimeout(() => updateTreeDataFromDOM(ulRoot), 0);
-        }
+        removeNode(tree.nodes, node.id);
+        li.remove();
       });
     });
   }
 
   function initSortableForTree(ul) {
-    // Check if sortable already exists
-    if (ul._sortable) {
-      ul._sortable.destroy();
-    }
-
-    const sortable = new Sortable(ul, {
+    new Sortable(ul, {
       group: 'nested',
       animation: 150,
       fallbackOnBody: true,
       swapThreshold: 0.65,
       onEnd: () => {
         const ulRoot = document.querySelector(".tree");
-        // Use setTimeout to ensure DOM is settled
-        setTimeout(() => updateTreeDataFromDOM(ulRoot), 50);
+        updateTreeDataFromDOM(ulRoot);
       }
     });
-
-    // Store reference to sortable for cleanup
-    ul._sortable = sortable;
   }
 
   function updateTreeDataFromDOM(ul) {
-    if (!ul) {
-      console.warn("updateTreeDataFromDOM called with null ul");
-      return;
-    }
-
-    console.log("Updating tree data from DOM, found", ul.children.length, "root elements");
-
     function parseUL(ul) {
-      const result = [];
-      const children = Array.from(ul.children);
-      console.log("Parsing UL with", children.length, "children");
-      
-      children.forEach((li, index) => {
-        const nodeId = parseFloat(li.dataset.nodeId);
-        console.log(`Processing child ${index}, nodeId: ${nodeId}`);
-        
-        const node = findNode(tree.nodes, nodeId);
-        if (node) {
-          // Create a fresh copy to avoid reference issues
-          const newNode = {
-            id: node.id,
-            title: node.title,
-            children: []
-          };
-          
-          // Update children array
-          const childUl = li.querySelector("ul");
-          if (childUl) {
-            newNode.children = parseUL(childUl);
-          }
-          result.push(newNode);
-          console.log(`Added node: ${newNode.title} with ${newNode.children.length} children`);
-        } else {
-          console.warn(`Node with ID ${nodeId} not found in tree data`);
-        }
+      return Array.from(ul.children).map(li => {
+        const nodeId = li.dataset.nodeId;
+        const node = findNode(tree.nodes, Number(nodeId));
+        const childUl = li.querySelector("ul");
+        if (childUl) node.children = parseUL(childUl);
+        return node;
       });
-      return result;
     }
-    
-    try {
-      const newNodes = parseUL(ul);
-      tree.nodes = newNodes;
-      console.log("Tree updated with", tree.nodes.length, "root nodes:", tree.nodes.map(n => n.title));
-    } catch (error) {
-      console.error("Error updating tree data:", error);
-    }
+    tree.nodes = parseUL(ul);
   }
 
   window.submitHierarchy = async function() {
     const username = document.getElementById("username").value || "Anonymous";
-    
-    // Final sync before submission
-    const ulRoot = document.querySelector(".tree");
-    updateTreeDataFromDOM(ulRoot);
-    
     try {
       await addDoc(collection(db, "submissions"), {
         username,
