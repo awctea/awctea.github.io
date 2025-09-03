@@ -2,14 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Interactive Multi-Tree Hierarchy</title>
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<title>Firebase Test</title>
 <script type="module">
-  // ---------------- Firebase Setup ----------------
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js";
   import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js";
 
-  // 🔹 Replace with your Firebase config
+  // 🔹 Replace with your Firebase Web App config
 const firebaseConfig = {
   apiKey: "AIzaSyAsGafeMKHVxAeUVAroHj-FqyPiRaDDyqE",
   authDomain: "test-769a6.firebaseapp.com",
@@ -22,124 +20,25 @@ const firebaseConfig = {
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  // ---------------- Sortable Options ----------------
-  const sortableOptions = { group: 'nested', animation: 150 };
-
-  function initSortableForTree(treeUl) {
-    new Sortable(treeUl, sortableOptions);
-    treeUl.querySelectorAll("ul").forEach(ul => new Sortable(ul, sortableOptions));
-  }
-
-  window.initPage = function() {
-    addTree(); // Add initial tree on page load
-  };
-
-  // ---------------- Add New Tree ----------------
-  window.addTree = function() {
-    const container = document.getElementById("trees-container");
-    const treeWrapper = document.createElement("div");
-    treeWrapper.className = "tree-wrapper";
-
-    const ul = document.createElement("ul");
-    ul.className = "tree";
-
-    const li = document.createElement("li");
-    li.innerHTML = '<span class="title" contenteditable="true">New Root</span> <button onclick="addItem(this)">+Add</button>';
-    ul.appendChild(li);
-
-    treeWrapper.appendChild(ul);
-    container.appendChild(treeWrapper);
-
-    initSortableForTree(ul);
-  };
-
-  // ---------------- Add New Item ----------------
-  window.addItem = function(button) {
-    const li = button.closest("li");
-    let childUl = li.querySelector("ul");
-    if (!childUl) {
-      childUl = document.createElement("ul");
-      li.appendChild(childUl);
-      new Sortable(childUl, sortableOptions);
-    }
-
-    const newLi = document.createElement("li");
-    newLi.className = "leaf";
-    newLi.innerHTML = '<span class="title" contenteditable="true">New Item</span> <button onclick="addItem(this)">+Add</button>';
-    childUl.appendChild(newLi);
-
-    // Auto-focus new item
-    const span = newLi.querySelector(".title");
-    span.focus();
-    span.select();
-  };
-
-  // ---------------- Convert UL to JSON ----------------
-  function getHierarchy(ul) {
-    return Array.from(ul.children).map(li => {
-      const node = { title: li.querySelector(".title").textContent, children: [] };
-      const childUl = li.querySelector("ul");
-      if (childUl) node.children = getHierarchy(childUl);
-      return node;
-    });
-  }
-
-  function getAllHierarchies() {
-    const hierarchies = [];
-    document.querySelectorAll("#trees-container > .tree-wrapper > ul").forEach(ul => {
-      hierarchies.push(getHierarchy(ul));
-    });
-    return hierarchies;
-  }
-
-  // ---------------- Submit All Trees ----------------
-  window.submitAllHierarchies = async function() {
-    const allHierarchies = getAllHierarchies();
-
-    // Sanitize titles
-    function sanitizeHierarchy(node) {
-      node.title = node.title.trim() || "Untitled";
-      if (node.children.length) node.children.forEach(sanitizeHierarchy);
-    }
-    allHierarchies.forEach(tree => tree.forEach(sanitizeHierarchy));
-
-    const username = document.getElementById("username").value || "Anonymous";
-
+  async function testSubmit() {
     try {
-      await addDoc(collection(db, "submissions"), {
-        username,
-        hierarchies: allHierarchies,
+      const docRef = await addDoc(collection(db, "test"), {
+        hello: "world",
         timestamp: new Date()
       });
-      alert("All hierarchies submitted successfully!");
-    } catch (e) {
-      console.error("Error adding document: ", e);
-      alert("Failed to submit hierarchies.");
+      alert("Success! Document ID: " + docRef.id);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to submit: " + err.message);
     }
-  };
+  }
+
+  window.testSubmit = testSubmit;
 </script>
-
-<style>
-body { font-family: sans-serif; margin: 2rem; }
-ul { list-style-type: none; padding-left: 1rem; }
-li { margin: 0.25rem 0; padding: 0.25rem; border: 1px solid #ccc; border-radius: 4px; }
-button { margin-left: 0.5rem; }
-.title { outline: none; } /* Remove focus outline if desired */
-.tree-wrapper { margin-bottom: 1rem; padding: 0.5rem; border: 1px solid #aaa; border-radius: 6px; }
-</style>
 </head>
-<body onload="initPage()">
-
-<h1>Interactive Multi-Tree Hierarchy Exercise</h1>
-<p>Drag items to organize them. Add new items freely. Click on titles to edit them.</p>
-
-<input type="text" id="username" placeholder="Enter your name">
-<button onclick="addTree()">+ Add New Tree</button>
-<button onclick="submitAllHierarchies()">Submit All Hierarchies</button>
-
-<div id="trees-container">
-  <!-- Trees will appear here -->
-</div>
-
+<body>
+<h1>Firebase Firestore Test</h1>
+<button onclick="testSubmit()">Submit Test Document</button>
+<p>Open your console to see errors if it fails.</p>
 </body>
 </html>
