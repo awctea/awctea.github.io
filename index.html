@@ -42,8 +42,8 @@
     container.appendChild(wrapper);
 
     if(!treeObj.nodes.length){
-      const root1=createNode("Admin"); root1.children.push(createNode("Placeholder 1")); root1.children.push(createNode("Placeholder 2"));
-      const root2=createNode("Comms"); root2.children.push(createNode("Placeholder 1")); root2.children.push(createNode("Placeholder 2"));
+      const root1=createNode("Drive 1"); root1.children.push(createNode("Folder 1")); root1.children.push(createNode("Folder 2"));
+      const root2=createNode("Drive 2"); root2.children.push(createNode("Folder 1")); root2.children.push(createNode("Folder 2"));
       treeObj.nodes.push(root1,root2);
     }
     renderNodes(ul, treeObj.nodes, treeObj);
